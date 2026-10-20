@@ -1,11 +1,18 @@
 """Contrato HTTP de /chat e /health (SPEC §5.3, RNF04)."""
 
+import json
+import logging
+import time
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import Settings
+from app.errors import DependencyUnavailable
 from app.graph import GraphDeps
 from app.judge import LLMJudge
-from app.main import create_app
+from app.main import UNAVAILABLE_DETAIL, JsonFormatter, create_app
 from tests.fakes import FakeChatModel, FakeRetriever, chunk, scripted_judge
 
 
@@ -71,3 +78,88 @@ def test_fallback_nao_retorna_fontes() -> None:
     body = TestClient(create_app(deps=deps)).post("/chat", json={"message": "Tem estacionamento?"}).json()
     assert body["fallback"] is True
     assert body["sources"] == []
+
+
+# --------------------------------------------------------------------------- resiliência (RNF05)
+
+class BrokenRetriever:
+    def search(self, query: str, top_k: int) -> list:
+        raise DependencyUnavailable("qdrant", "ConnectError")
+
+
+class BrokenChatModel(FakeChatModel):
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):  # type: ignore[no-untyped-def]
+        raise httpx.ConnectError("conexão recusada")
+
+
+def test_llm_indisponivel_retorna_503_amigavel() -> None:
+    deps = GraphDeps(retriever=FakeRetriever(), chat_model=FakeChatModel(), judge=LLMJudge(BrokenChatModel()))
+    resp = TestClient(create_app(deps=deps)).post("/chat", json={"message": "qual o horário?"})
+    assert resp.status_code == 503
+    assert resp.json() == {"detail": UNAVAILABLE_DETAIL}
+    assert "Traceback" not in resp.text
+
+
+def test_qdrant_indisponivel_retorna_503() -> None:
+    judge = LLMJudge(FakeChatModel(responses=[scripted_judge()] * 2))
+    deps = GraphDeps(retriever=BrokenRetriever(), chat_model=FakeChatModel(), judge=judge)
+    resp = TestClient(create_app(deps=deps)).post("/chat", json={"message": "qual o horário?"})
+    assert resp.status_code == 503 and resp.json() == {"detail": UNAVAILABLE_DETAIL}
+
+
+def test_bloqueio_por_regex_funciona_com_llm_fora_e_em_menos_de_50ms() -> None:  # RNF02
+    deps = GraphDeps(retriever=BrokenRetriever(), chat_model=BrokenChatModel(), judge=LLMJudge(BrokenChatModel()))
+    client = TestClient(create_app(deps=deps))
+    client.post("/chat", json={"message": "aquecimento 123.456.789-09"})
+    start = time.perf_counter()
+    resp = client.post("/chat", json={"message": "meu cpf é 123.456.789-09"})
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    assert resp.status_code == 200 and resp.json()["guardrail"] == {"motivo": "PII", "camada": "regex"}
+    assert elapsed_ms < 50
+
+
+def test_clientes_reais_sem_servicos_retornam_503() -> None:
+    settings = Settings(ollama_base_url="http://127.0.0.1:1", qdrant_url="http://127.0.0.1:1", llm_timeout_s=3)
+    client = TestClient(create_app(settings=settings))
+    assert client.post("/chat", json={"message": "qual o horário da vacina?"}).status_code == 503
+    health = client.get("/health")
+    assert health.status_code == 503
+    assert health.json() | {"collection_points": None} == {
+        "status": "degradado", "qdrant": "erro", "ollama": "erro", "collection_points": None,
+    }
+
+
+# --------------------------------------------------------------------------- health
+
+
+def test_health_ok_com_componentes() -> None:
+    probe = lambda: {"qdrant": "ok", "ollama": "ok", "collection_points": 32}  # noqa: E731
+    deps = GraphDeps(retriever=FakeRetriever(), chat_model=FakeChatModel(), judge=LLMJudge(FakeChatModel()))
+    resp = TestClient(create_app(deps=deps, health_probe=probe)).get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "qdrant": "ok", "ollama": "ok", "collection_points": 32}
+
+
+def test_health_503_se_componente_falha() -> None:
+    probe = lambda: {"qdrant": "erro", "ollama": "ok", "collection_points": None}  # noqa: E731
+    deps = GraphDeps(retriever=FakeRetriever(), chat_model=FakeChatModel(), judge=LLMJudge(FakeChatModel()))
+    assert TestClient(create_app(deps=deps, health_probe=probe)).get("/health").status_code == 503
+
+
+# --------------------------------------------------------------------------- observabilidade (RNF06)
+
+
+def test_log_por_requisicao_com_metadados_e_sem_texto(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
+    message = "Qual o horário da UBS?"
+    with caplog.at_level(logging.INFO):
+        body = client.post("/chat", json={"message": message}).json()
+
+    record = next(r for r in caplog.records if r.getMessage() == "chat_request")
+    line = json.loads(JsonFormatter().format(record))
+    assert line["event"] == "chat_request"
+    assert line["request_id"] == body["request_id"]
+    assert line["route"] == "CONSULTA_RAG" and line["score"] == 5 and line["tool"] is None
+    assert line["llm_calls"] == 4
+    assert {"noul", "choice", "retrieve", "score", "generate"} <= set(line["timings_ms"])
+    assert line["total_ms"] > 0 and line["message_len"] == len(message) and line["history_len"] == 0
+    assert all(message not in json.dumps(json.loads(JsonFormatter().format(r)), ensure_ascii=False) for r in caplog.records)

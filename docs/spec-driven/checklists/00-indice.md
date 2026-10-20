@@ -21,7 +21,7 @@
 | 2 | [02-rag.md](02-rag.md) | T-04, T-05, T-06 | Fase 1 | ☑ |
 | 3 | [03-guardrails-roteamento.md](03-guardrails-roteamento.md) | T-07, T-08 | Fase 2 | ☐ |
 | 4 | [04-tools.md](04-tools.md) | T-09 | T-07 | ☑ |
-| 5 | [05-observabilidade-resiliencia.md](05-observabilidade-resiliencia.md) | T-10 | Fases 3 e 4 | ☐ |
+| 5 | [05-observabilidade-resiliencia.md](05-observabilidade-resiliencia.md) | T-10 | Fases 3 e 4 | ☑ |
 | 6 | [06-frontend.md](06-frontend.md) | T-11 | T-01 (contrato da API) | ☐ |
 | 7 | [07-docker-entrega.md](07-docker-entrega.md) | T-12 | T-04, T-11 | ☐ |
 | 8 | [08-testes-avaliacao.md](08-testes-avaliacao.md) | T-13, T-14 | Fases 3 e 4 | ☐ |
