@@ -5,22 +5,22 @@
 ## T-04 — Ingestão e busca (`rag.py` + `scripts/ingest.py`)
 **ACs:** AC-RF01-1, AC-RF01-2, AC-RF01-3, AC-RF01-4 · **Depende de:** T-02, T-03
 
-- [ ] `llm.py` — fábrica de embeddings (Ollama, `EMBED_MODEL`)
-- [ ] `rag.py` — chunking: ~800 caracteres, overlap 120, preferindo quebras em títulos/parágrafos
-- [ ] Payload por ponto: `source`, `section`, `chunk_index`, `text` (`section` = caminho de títulos, ex.: "Exames › Coleta de sangue")
-- [ ] ID determinístico: `uuid5(source + chunk_index)`
-- [ ] Criar coleção `QDRANT_COLLECTION` se não existir (distância cosseno, dim do modelo de embedding)
-- [ ] Upsert em lote (por arquivo, removendo antes os chunks antigos do mesmo arquivo)
-- [ ] Função `search(query, top_k) -> list[RetrievedChunk]`
-- [ ] Função `ensure_ingested()` — ingere só se a coleção estiver vazia (usada no startup, T-12)
-- [ ] `scripts/ingest.py` — CLI que reaproveita `rag.py` e imprime total de arquivos e chunks
-- [ ] Ignorar arquivos vazios / formato não suportado com log de aviso, exit code 0
-- [ ] Qdrant indisponível → mensagem clara, exit code ≠ 0
-- [ ] Verificar AC-RF01-1: coleção criada, ≥ 1 ponto por arquivo (`tests/integration/test_ingest.py`, Qdrant em memória)
-- [ ] Verificar AC-RF01-2: segunda execução mantém a mesma contagem (idem)
-- [ ] Verificar AC-RF01-3: arquivo vazio/`.pdf` ignorado com aviso (idem)
-- [ ] Verificar AC-RF01-4: com Qdrant parado, falha com exit ≠ 0 (idem, endereço inacessível)
-- [ ] Verificar ingestão real com Qdrant + Ollama (`bge-m3`) no Docker — 4 arquivos, 32 chunks; reexecução mantém 32
+- [x] `llm.py` — fábrica de embeddings (Ollama, `EMBED_MODEL`)
+- [x] `rag.py` — chunking: ~800 caracteres, overlap 120, preferindo quebras em títulos/parágrafos
+- [x] Payload por ponto: `source`, `section`, `chunk_index`, `text` (`section` = caminho de títulos, ex.: "Exames › Coleta de sangue")
+- [x] ID determinístico: `uuid5(source + chunk_index)`
+- [x] Criar coleção `QDRANT_COLLECTION` se não existir (distância cosseno, dim do modelo de embedding)
+- [x] Upsert em lote (por arquivo, removendo antes os chunks antigos do mesmo arquivo)
+- [x] Função `search(query, top_k) -> list[RetrievedChunk]`
+- [x] Função `ensure_ingested()` — ingere só se a coleção estiver vazia (usada no startup, T-12)
+- [x] `scripts/ingest.py` — CLI que reaproveita `rag.py` e imprime total de arquivos e chunks
+- [x] Ignorar arquivos vazios / formato não suportado com log de aviso, exit code 0
+- [x] Qdrant indisponível → mensagem clara, exit code ≠ 0
+- [x] Verificar AC-RF01-1: coleção criada, ≥ 1 ponto por arquivo (`tests/integration/test_ingest.py`, Qdrant em memória)
+- [x] Verificar AC-RF01-2: segunda execução mantém a mesma contagem (idem)
+- [x] Verificar AC-RF01-3: arquivo vazio/`.pdf` ignorado com aviso (idem)
+- [x] Verificar AC-RF01-4: com Qdrant parado, falha com exit ≠ 0 (idem, endereço inacessível)
+- [x] Verificar ingestão real com Qdrant + Ollama (`bge-m3`) no Docker — 4 arquivos, 32 chunks; reexecução mantém 32 (20/10); busca top-1 correta para glicemia, vacina da gripe, documentos e dentista
 
 ## T-05 — Grafo mínimo `retrieve → generate`
 **ACs:** AC-RF02-11 (parcial) · **Depende de:** T-04
