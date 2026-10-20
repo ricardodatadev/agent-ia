@@ -14,6 +14,7 @@ RUN pip install -r requirements.txt
 COPY app/ app/
 COPY scripts/ scripts/
 COPY data/ data/
+COPY jevs/ jevs/
 
 RUN useradd --create-home --uid 10001 appuser
 USER appuser

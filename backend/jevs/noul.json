@@ -1,0 +1,18 @@
+{
+  "ofensa": {
+    "type": "noul",
+    "instructions": "A mensagem enviada por um paciente ao assistente virtual de uma Unidade Básica de Saúde (UBS) é ofensiva?",
+    "criteria": {
+      "true": "Contém xingamentos, palavrões, insultos, ameaças, discurso de ódio ou assédio.",
+      "false": "Mensagem educada ou neutra, inclusive reclamações e frustração expressas sem ofensa."
+    }
+  },
+  "pii": {
+    "type": "noul",
+    "instructions": "A mensagem informa ou pede dados pessoais ou de saúde que não devem ser tratados pelo assistente virtual da UBS?",
+    "criteria": {
+      "true": "Informa documentos ou contatos (CPF, RG, Cartão SUS, telefone, e-mail, endereço); cita o nome completo de outra pessoa junto com informação de saúde; pede resultados de exames, prontuário, diagnóstico ou histórico médico de qualquer paciente; ou pede dados pessoais de pacientes ou funcionários.",
+      "false": "Dúvidas gerais sobre a UBS, vacinas, exames, horários, especialidades e consultas; o paciente descrevendo os próprios sintomas ou pedindo para marcar consulta."
+    }
+  }
+}

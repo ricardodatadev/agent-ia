@@ -17,7 +17,8 @@ from app.config import Settings, get_settings
 from app.errors import DependencyUnavailable
 from app.graph import GraphDeps, build_graph, to_sources
 from app.guardrails import find_pii
-from app.judge import LLMJudge
+from app.jev import JevJudge, JevQuestions, classify_jev_error, resolve_engine
+from app.judge import Judge, LLMJudge
 from app.llm import LLM_ERRORS, classify_llm_error, make_chat_model, make_judge_model, warm_up
 from app.models import ChatRequest, ChatResponse, GraphState, RetrievedChunk
 from app.rag import VectorStore
@@ -64,11 +65,28 @@ def configure_logging() -> None:
 # --------------------------------------------------------------------------- dependências
 
 
+def build_judge(settings: Settings) -> Judge:
+    """Motor das decisões (RF06): Jev da TypeSafe AI ou modo local. As perguntas do Jev são validadas sempre."""
+    questions = JevQuestions.load()
+    engine = resolve_engine(settings)
+    if engine == "typesafe":
+        judge: Judge = JevJudge.from_settings(settings, questions)
+        model = settings.typesafe_model
+    else:
+        judge = LLMJudge(make_judge_model(settings))
+        model = settings.llm_model
+    reason = "JEV_PROVIDER" if settings.jev_provider != "auto" else (
+        "auto: TYPESAFE_API_KEY definida" if engine == "typesafe" else "auto: sem TYPESAFE_API_KEY"
+    )
+    logger.info("decision_engine_selected", extra={"engine": engine, "model": model, "reason": reason})
+    return judge
+
+
 def build_deps(settings: Settings) -> GraphDeps:
     return GraphDeps(
         retriever=VectorStore.from_settings(settings),
         chat_model=make_chat_model(settings),
-        judge=LLMJudge(make_judge_model(settings)),
+        judge=build_judge(settings),
         top_k=settings.top_k,
         score_threshold=settings.score_threshold,
     )
@@ -148,7 +166,8 @@ def startup_warm_up(settings: Settings, deps: GraphDeps) -> None:
     sample = RetrievedChunk(source="aquecimento", chunk_index=0, text="A UBS funciona de segunda a sexta.")
     try:
         warm_up(settings)
-        if settings.llm_provider == "ollama":  # com API externa não há carga a frio; aquecer só gastaria tokens
+        # Só o modo local com Ollama tem carga a frio; com Jev ou API, aquecer só gastaria tokens.
+        if settings.llm_provider == "ollama" and isinstance(deps.judge, LLMJudge):
             deps.judge.noul("Olá")
             deps.judge.choice("Olá", [])
             deps.judge.score("Olá", [sample])
@@ -184,6 +203,8 @@ def create_app(
         if real_llm:
             startup_warm_up(settings, deps)
         yield
+        if isinstance(deps.judge, JevJudge):  # fecha o cliente HTTP do SDK
+            deps.judge.close()
 
     app = FastAPI(title="Assistente UBS · Agente de IA", version="1.0.0", lifespan=lifespan)
     app.add_middleware(
@@ -215,10 +236,11 @@ def create_app(
         try:
             final = graph.invoke(state)
         except Exception as exc:
-            kind = "unavailable" if isinstance(exc, DependencyUnavailable) else classify_llm_error(exc)
+            jev_kind = classify_jev_error(exc)
+            kind = "unavailable" if isinstance(exc, DependencyUnavailable) else (jev_kind or classify_llm_error(exc))
             if kind is None:
                 raise
-            dependency = exc.dependency if isinstance(exc, DependencyUnavailable) else "llm"
+            dependency = exc.dependency if isinstance(exc, DependencyUnavailable) else ("jev" if jev_kind else "llm")
             event = "dependency_error" if kind == "unavailable" else "llm_config_error"
             logger.error(
                 event,

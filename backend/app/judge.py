@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, ValidationError
 
 from app.llm import message_text
-from app.models import BlockReason, ChatTurn, Intent, RetrievedChunk
+from app.models import BlockReason, ChatTurn, GuardrailLayer, Intent, RetrievedChunk
 from app.prompts import (
     CHOICE_SYSTEM,
     NOUL_SYSTEM,
@@ -56,6 +56,8 @@ _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 @runtime_checkable
 class Judge(Protocol):
     """Decisões Noul, Choice e Score; cada uma devolve (decisão, nº de chamadas ao motor)."""
+
+    layer: GuardrailLayer  # camada informada nos bloqueios semânticos ("llm" ou "jev")
 
     def noul(self, message: str) -> tuple[BlockReason | None, int]: ...
 
@@ -145,6 +147,8 @@ def anchored_score(verdict: ScoreVerdict, chunks: list[RetrievedChunk], question
 
 class LLMJudge:
     """Modo local: cada decisão devolve (resultado, nº de chamadas ao LLM)."""
+
+    layer: GuardrailLayer = "llm"
 
     def __init__(self, model: BaseChatModel) -> None:
         self.model = model

@@ -34,21 +34,21 @@
 ## T-23 — Integração com o Jev via SDK oficial
 **ACs:** AC-RF06-3..6 · **Depende de:** T-22
 
-- [ ] SDK oficial `typesafe-sdk==0.7.0` (código do pacote revisado antes da instalação; versão publicada há mais de duas semanas; sem conflito de dependências)
-- [ ] `backend/jevs/noul.json` (`ofensa`, `pii`), `choice.json` (`intencao` com as 4 rotas), `score.json` (`relevancia`, 5 níveis) no formato da API
-- [ ] `JevQuestions.load`: carga única e validação com os modelos Pydantic do SDK + conferência contra o grafo (fail-fast)
-- [ ] `JevJudge`:
-  - [ ] Noul: duas perguntas em uma requisição; bloqueia pelo maior valor ≥ `JEV_NOUL_THRESHOLD`; resposta ausente → `INDETERMINADO`
-  - [ ] Choice: `state` estruturado (`mensagem_atual` + `historico` recente); opção fora das rotas → `CONSULTA_RAG`
-  - [ ] Score: `state` com `pergunta` + `trechos` (fonte e texto); níveis 0–4 → nota 1–5; confiança < `JEV_MIN_CONFIDENCE` → fallback
-  - [ ] Log `jev_answer` só com metadados (versão do modelo, tokens, probabilidade/confiança)
-- [ ] Configuração: `JEV_PROVIDER`, `TYPESAFE_API_KEY` (`SecretStr`), `TYPESAFE_MODEL=jev-1.13.0` (versão fixada), `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_MIN_CONFIDENCE`
-- [ ] Resiliência: timeout e `RetryPolicy` do SDK; conexão/timeout/429/5xx/resposta malformada → `503`; chave inválida → 500 com log
-- [ ] LGPD: logger `typesafe_sdk` fixado em `WARNING` (o SDK registra corpos de requisição em `debug`)
-- [ ] Cliente HTTP fechado no desligamento da API; `Dockerfile` copia `jevs/`; tipo `camada = "jev"` no frontend
-- [ ] Testes (34 novos): arquivos de perguntas; contrato da requisição; caminhos de Noul, Choice e Score; erros; grafo completo; LGPD — passando pelo SDK real com `httpx2.MockTransport`
-- [ ] **`JEV_PROVIDER=auto` como padrão** (Jev se houver chave; senão modo local) e registro da escolha no log de inicialização — AC-RF06-1, AC-RF06-2
-- [ ] `.env.example` com `JEV_PROVIDER=auto` e explicação
+- [x] SDK oficial `typesafe-sdk==0.7.0` (código do pacote lido antes da integração: cliente, perguntas, respostas, erros, retry e logging — em DEBUG ele registra corpos de requisição; sem conflito de dependências)
+- [x] `backend/jevs/noul.json` (`ofensa`, `pii`), `choice.json` (`intencao` com as 4 rotas), `score.json` (`relevancia`, 5 níveis) no formato da API
+- [x] `JevQuestions.load`: carga única e validação com os modelos Pydantic do SDK + conferência contra o grafo (fail-fast)
+- [x] `JevJudge`:
+  - [x] Noul: duas perguntas em uma requisição; bloqueia pelo maior valor ≥ `JEV_NOUL_THRESHOLD`; resposta ausente → `INDETERMINADO`
+  - [x] Choice: `state` estruturado (`mensagem_atual` + `historico` recente); opção fora das rotas → `CONSULTA_RAG`
+  - [x] Score: `state` com `pergunta` + `trechos` (fonte e texto); níveis 0–4 → nota 1–5; confiança < `JEV_MIN_CONFIDENCE` → fallback
+  - [x] Log `jev_answer` só com metadados (versão do modelo, tokens, probabilidade/confiança)
+- [x] Configuração: `JEV_PROVIDER`, `TYPESAFE_API_KEY` (`SecretStr`), `TYPESAFE_MODEL=jev-1.13.0` (versão fixada), `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_MIN_CONFIDENCE`
+- [x] Resiliência: timeout e `RetryPolicy` do SDK; conexão/timeout/429/5xx/resposta malformada → `503`; chave inválida → 500 com log
+- [x] LGPD: logger `typesafe_sdk` fixado em `WARNING` (o SDK registra corpos de requisição em `debug`)
+- [x] Cliente HTTP fechado no desligamento da API; `Dockerfile` copia `jevs/`; tipo `camada = "jev"` no frontend
+- [x] Testes (51 novos): `test_jev_questions.py` (20 — arquivos, divergências do grafo, campo desconhecido, níveis → nota, escolha do motor) e `test_jev_judge.py` (31 — contrato da requisição, Noul/Choice/Score, grafo completo com `camada = "jev"`, regex e urgência sem chamar o Jev, 503 para conexão/timeout/429/5xx/malformada, 500 para chave inválida, LGPD nos logs, motor escolhido na inicialização) — passando pelo SDK real com `httpx2.MockTransport`; suíte: **251 passed**
+- [x] **`JEV_PROVIDER=auto` como padrão** (Jev se houver chave; senão modo local) e registro da escolha no log de inicialização (`decision_engine_selected`) — AC-RF06-1, AC-RF06-2; verificado no container: `engine: llm`, `reason: auto: sem TYPESAFE_API_KEY`
+- [x] `.env.example` com `JEV_PROVIDER=auto` e explicação
 
 ## T-24 — Verificação
 **ACs:** AC-RF06-1..7 · **Depende de:** T-23

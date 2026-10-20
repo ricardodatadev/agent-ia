@@ -65,7 +65,7 @@ def check_input(message: str, judge: Judge) -> NoulDecision:
     if is_urgent(message):
         return NoulDecision(None, None, llm_calls=0)
     motivo, calls = judge.noul(message)
-    guardrail = GuardrailResult(motivo=motivo, camada="llm") if motivo else None
+    guardrail = GuardrailResult(motivo=motivo, camada=judge.layer) if motivo else None
     return NoulDecision(guardrail, None, llm_calls=calls)
 
 
