@@ -2,7 +2,7 @@
 
 > **Tipo:** Spec-Driven Development (SDD) — especificação executável para guiar implementação, testes e revisão.
 > **Fonte:** [docs/especificacao_de_requisitos.md](../docs/especificacao_de_requisitos.md)
-> **Status:** v1 concluída na reconstrução (2026-10-20) · próximas: T-16 a T-25 (provedores e Jev da TypeSafe AI) · Resultados da avaliação em [08-testes-avaliacao.md](checklists/08-testes-avaliacao.md) e no [README](../../README.md)
+> **Status:** v1 e pós-v1 (T-16 a T-25) concluídas na reconstrução (2026-10-20) · decisões pelo Jev da TypeSafe AI integradas e testadas com rede simulada; chamada real e avaliação com o Jev pendentes de `TYPESAFE_API_KEY` · Resultados em [08-testes-avaliacao.md](checklists/08-testes-avaliacao.md) e no [README](../../README.md)
 
 Fluxo de trabalho deste documento: **Requisitos → Critérios de Aceite → Design/Contratos → Tarefas → Testes**.
 Nenhuma tarefa é considerada concluída sem que os critérios de aceite (AC) vinculados estejam cobertos por teste ou verificação manual registrada.

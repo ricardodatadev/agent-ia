@@ -53,15 +53,15 @@
 ## T-24 — Verificação
 **ACs:** AC-RF06-1..7 · **Depende de:** T-23
 
-- [ ] Suíte completa sem Docker: **201 passed** (167 da v1 + 34 do Jev); build do frontend ok
-- [ ] Stack real no Docker com o modo local: respostas e rotas inalteradas (bloqueio, urgência, agendamento, fora do escopo)
-- [ ] CI simulado em ambiente limpo (`python:3.12-slim`) com a nova dependência
+- [x] Suíte completa sem Docker: **251 passed** (200 + 51 do Jev); build do frontend ok
+- [x] Stack real no Docker com o modo local (`JEV_PROVIDER=auto` sem chave): **12/12** rotas corretas e sem 503 — RAG, fallback, agendamento (com/sem especialidade, indisponível), urgência (0 s, sem LLM), atendente, fora do escopo, PII por regex, PII semântica e ofensa (`camada = llm`)
+- [x] CI simulado em ambiente limpo (`python:3.12-slim`, a partir do commit da T-23) com o `typesafe-sdk`: **251 passed**
 - [ ] Chamada real ao Jev — **pendente: requer `TYPESAFE_API_KEY` (acesso por lista de espera)**
 - [ ] Avaliação com o dataset usando o Jev e comparação com o modo local (AC-RF06-7) — **pendente: requer chave**
 
 ## T-25 — Documentação final
 **ACs:** — · **Depende de:** T-24
 
-- [ ] README: Jev da TypeSafe AI como motor das decisões, modo local, configuração e LGPD; sem o termo antigo
-- [ ] Explicação do fluxo das decisões (camada determinística → Jev → grafo) com os arquivos `jevs/*.json`
-- [ ] Atualizar o índice e o status da SPEC ao concluir
+- [x] README: Jev da TypeSafe AI como motor das decisões, modo local, configuração e LGPD (seção "Motor de decisões: Jev da TypeSafe AI ou modo local", destaques, stack, componentes, ADR-13/14 e limitação da avaliação pendente)
+- [x] Explicação do fluxo das decisões (camada determinística → Jev ou modo local → aresta do grafo) com os arquivos `jevs/*.json`, também no diagrama Mermaid
+- [x] Índice e status da SPEC atualizados
