@@ -84,6 +84,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: http://localhost:8000 # URL vista pelo navegador
+        VITE_SHOW_DEBUG: ${SHOW_DEBUG:-true} # demo de portfólio ligada por padrão; mudar exige rebuild
     ports:
       - "5173:5173"
     depends_on:

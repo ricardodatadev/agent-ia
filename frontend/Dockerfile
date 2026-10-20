@@ -7,6 +7,9 @@ COPY . .
 # URL da API vista pelo NAVEGADOR (não pelo container)
 ARG VITE_API_URL=http://localhost:8000
 ENV VITE_API_URL=$VITE_API_URL
+# Modo demonstração: mostra rota e nota do Score em cada resposta (desligado se ausente)
+ARG VITE_SHOW_DEBUG=false
+ENV VITE_SHOW_DEBUG=$VITE_SHOW_DEBUG
 RUN npm run build
 
 # Etapa 2 — nginx servindo os arquivos na porta 5173

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import type { BlockReason, ChatResponse, GuardrailLayer, Route, Source, ToolCallInfo } from "../types";
 
+// Modo demonstração (SPEC RF04): embutido no build do Vite; ausente = desligado.
+const SHOW_DEBUG = import.meta.env.VITE_SHOW_DEBUG === "true";
+
 const BLOCK_LABELS: Record<BlockReason, string> = {
   OFENSA: "Linguagem ofensiva",
   PII: "Dados pessoais (LGPD)",
@@ -98,6 +101,7 @@ export function DebugLine({ response }: { response: ChatResponse }) {
 
 export function ResponseBadges({ response }: { response: ChatResponse }) {
   const hasPills = response.guardrail || response.tool_call || response.fallback;
+  if (!hasPills && response.sources.length === 0 && !SHOW_DEBUG) return null;
   return (
     <div className="mt-2 space-y-1.5">
       {hasPills && (
@@ -108,7 +112,7 @@ export function ResponseBadges({ response }: { response: ChatResponse }) {
         </div>
       )}
       {response.sources.length > 0 && <SourcesList sources={response.sources} />}
-      <DebugLine response={response} />
+      {SHOW_DEBUG && <DebugLine response={response} />}
     </div>
   );
 }

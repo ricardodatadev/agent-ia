@@ -47,11 +47,11 @@
 ## T-19 — Modo demonstração configurável na interface
 **ACs:** linha "Rota · relevância" só aparece com `SHOW_DEBUG=true`; fontes e selos sempre visíveis · **Depende de:** T-11
 
-- [ ] `Badges.tsx`: linha de rota/nota condicionada a `VITE_SHOW_DEBUG === "true"` (ausente = desligado)
-- [ ] `frontend/Dockerfile`: build arg `VITE_SHOW_DEBUG` (padrão `false`)
-- [ ] `docker-compose.yml`: `VITE_SHOW_DEBUG: ${SHOW_DEBUG:-true}` (demo de portfólio ligada por padrão)
-- [ ] `.env.example`: `SHOW_DEBUG=true` com instrução de rebuild; README com a explicação
-- [ ] Verificado com Edge headless contra a stack real: `SHOW_DEBUG=false` → selo de guardrail visível e **sem** "Rota:"; padrão → "Rota:" visível
+- [x] `Badges.tsx`: linha de rota/nota condicionada a `VITE_SHOW_DEBUG === "true"` (ausente = desligado); tipo em `vite-env.d.ts`
+- [x] `frontend/Dockerfile`: build arg `VITE_SHOW_DEBUG` (padrão `false`)
+- [x] `docker-compose.yml`: `VITE_SHOW_DEBUG: ${SHOW_DEBUG:-true}` (demo de portfólio ligada por padrão)
+- [x] `.env.example`: `SHOW_DEBUG=true` com instrução de rebuild; README com a explicação
+- [x] Verificado com Edge headless contra a stack real (20/10): `SHOW_DEBUG=false` → selo de guardrail e fontes visíveis e **sem** "Rota:"; padrão → "Rota:" visível (AC-RF04-5)
 
 ## T-20 — README reescrito para portfólio
 - [ ] Removidos: coluna "Quando usar", resultados da avaliação, comparação de modelos, falhas do Qwen e tabela de latência
