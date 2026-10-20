@@ -26,7 +26,7 @@
 | 7 | [07-docker-entrega.md](07-docker-entrega.md) | T-12 | T-04, T-11 | ☑ |
 | 8 | [08-testes-avaliacao.md](08-testes-avaliacao.md) | T-13, T-14 | Fases 3 e 4 | ☑ |
 | 9 | [09-documentacao.md](09-documentacao.md) | T-15 | Fases 7 e 8 | ☑ |
-| 10 (pós-v1) | [10-modelos-provedores.md](10-modelos-provedores.md) | T-16 a T-20 | v1 | ☐ |
+| 10 (pós-v1) | [10-modelos-provedores.md](10-modelos-provedores.md) | T-16 a T-20 | v1 | ◐ T-16 a T-20 feitas; pendentes com o usuário: chamada real a Claude/Gemini (sem chaves), GIF, repositório público e 1º CI verde |
 | 11 (pós-v1) | [11-jev-typesafe.md](11-jev-typesafe.md) | T-21 a T-25 | v1 | ☐ |
 
 > A Fase 6 (frontend) pode ser feita em paralelo às Fases 2–5, usando o contrato de `POST /chat` da SPEC §5.3.

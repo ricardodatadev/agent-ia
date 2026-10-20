@@ -16,7 +16,7 @@ Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **r
 
 - **Grafo LangGraph com 3 decisões tipadas** — *Noul* (segurança), *Choice* (intenção) e *Score* (relevância) — cada uma podendo encerrar o fluxo cedo, sem gastar tokens à toa.
 - **Camadas determinísticas antes do LLM:** regex de CPF/CNS/RG/telefone/e-mail e termos de urgência decidem em milissegundos e com zero tokens.
-- **Falha segura em tudo:** saída inválida do LLM vira bloqueio `INDETERMINADO`, rota de consulta protegida pelo Score ou nota 1 (fallback) — nunca uma resposta inventada.
+- **Falha segura nas decisões:** saída inválida do LLM vira bloqueio `INDETERMINADO`, rota de consulta protegida pelo Score ou nota 1 (fallback) — uma decisão quebrada nunca libera uma resposta sem evidência.
 - **Score ancorado em evidência:** o LLM precisa citar a frase do documento; o código confere se a citação existe e se trata do assunto perguntado.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
@@ -105,7 +105,7 @@ O LLM é escolhido só pelo `.env` (`LLM_PROVIDER` + `LLM_MODEL`); o grafo não 
 
 | Opção | `.env` | Observação |
 | :--- | :--- | :--- |
-| **Llama 3.2 3B** (padrão) | `LLM_PROVIDER=ollama` · `LLM_MODEL=llama3.2:3b` | Roda em CPU com ~8 GB de RAM; único avaliado que atingiu todas as metas |
+| **Llama 3.2 3B** (padrão) | `LLM_PROVIDER=ollama` · `LLM_MODEL=llama3.2:3b` | Roda em CPU com ~8 GB de RAM; melhor resultado em urgência na comparação com o Qwen (ADR-12) |
 | Llama 3.1 8B | `LLM_MODEL=llama3.1:8b` | Mais preciso; pede GPU ou mais RAM |
 | Qwen 2.5 3B / 1.5B | `LLM_MODEL=qwen2.5:3b` | Avaliado contra o Llama: Choice melhor, mas errou urgência (ADR-12) |
 | Claude (API Anthropic) | `LLM_PROVIDER=anthropic` · `ANTHROPIC_API_KEY=...` | Respostas em segundos, sem GPU |
@@ -178,7 +178,7 @@ Detalhes, alternativas e motivos em [SPEC §9](docs/spec-driven/SPEC.md#9-decis�
 | 04 | Uma tool por rota no `bind_tools` | Permissão mínima; o roteamento já foi decidido pelo Choice |
 | 07 | Termos de urgência antes dos LLMs | Falso negativo em urgência é o erro mais caro do sistema |
 | 08 | Especialidade em texto livre, normalizada no código | Com enum, modelos pequenos "escolhem" uma especialidade que o paciente não disse |
-| 09/10 | Llama 3.2 3B em CPU, timeout 120 s, top-k 3, modelos sempre em memória | Cabe na RAM do Docker e é ~3× mais rápido que o 8B |
+| 09/10 | Llama 3.2 3B em CPU, timeout 120 s, top-k 3, modelos sempre em memória | Cabe na RAM do Docker e é 2–3× mais rápido que o 8B |
 | 11 | Score com citação conferida no código | O modelo pequeno dava notas incoerentes com a própria citação |
 
 ## Como trocar de nicho
@@ -193,7 +193,7 @@ A mecânica (grafo, decisões, guardrails, API, UI) é independente do domínio.
 
 ## Limitações conhecidas e próximos passos
 
-- **Latência em CPU:** perguntas respondidas pelo RAG levam ~1 minuto (Score + geração). Com GPU, ou trocando `LLM_MODEL` para um modelo maior/hospedado, cai para segundos.
+- **Latência em CPU:** perguntas respondidas pelo RAG levam ~1 minuto (Score + geração). Com GPU no Ollama, ou com Claude/Gemini via API, cai para segundos.
 - **Erros que falham de forma segura:** "qual o nome do diretor?" foi classificada como fora do escopo e um prompt injection foi bloqueado como `INDETERMINADO` — ambos com texto fixo, nada inventado.
 - **Geração com modelo pequeno:** na revisão manual, 1 de 10 respostas acrescentou uma frase que não está nos documentos (sem risco clínico). Próximo passo: modelo maior ou verificação da resposta contra o contexto.
 - **Busca:** sem re-ranking nem busca híbrida (ADR-05); a avaliação não mostrou necessidade.

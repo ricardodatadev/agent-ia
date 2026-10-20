@@ -54,7 +54,8 @@
 - [x] Verificado com Edge headless contra a stack real (20/10): `SHOW_DEBUG=false` → selo de guardrail e fontes visíveis e **sem** "Rota:"; padrão → "Rota:" visível (AC-RF04-5)
 
 ## T-20 — README reescrito para portfólio
-- [ ] Removidos: coluna "Quando usar", resultados da avaliação, comparação de modelos, falhas do Qwen e tabela de latência
-- [ ] Nova seção sobre as decisões Noul, Choice e Score: pontos de controle, camadas determinísticas, falha segura e economia de tokens por encerramento antecipado (tabela de chamadas por tipo de mensagem, com a ressalva de que no RAG completo as decisões acrescentam chamadas). Será revista na T-25 para o Jev da TypeSafe AI
-- [ ] Nova seção "Por que guardrails importam": urgência, LGPD, alucinação, uso fora do propósito e tools — risco × guardrail × funcionamento
-- [ ] Números de avaliação e comparação continuam registrados na SPEC (ADR-11, ADR-12) e no checklist 08
+- [x] **Decisão do usuário (reconstrução, 20/10): resultados da avaliação mantidos no README** (tabela + "o que a avaliação mudou no sistema"), por mostrarem medição com LLM real e correções guiadas por dados. A comparação com o Qwen ficou resumida a uma linha na tabela de modelos; sem coluna "Quando usar" nem tabela de latência separada
+- [x] Seção sobre as decisões Noul, Choice e Score ("As 3 decisões" + "Economia de tokens"): pontos de controle, camadas determinísticas, falha segura e economia de tokens por encerramento antecipado (tabela de chamadas por tipo de mensagem, com a ressalva de que no RAG completo as decisões acrescentam chamadas). Será revista na T-25 para o Jev da TypeSafe AI
+- [x] Seção "Por que guardrails importam": urgência, LGPD, alucinação, uso fora do propósito e tools — risco × guardrail × funcionamento
+- [x] Números de avaliação e comparação registrados na SPEC (ADR-11, ADR-12) e no checklist 08
+- [x] Revisão de texto: 4 afirmações exageradas corrigidas ("falha segura em tudo… nunca inventada" × alucinação registrada; "único que atingiu todas as metas"; "modelo maior cai para segundos" em CPU; "~3×" → "2–3×")
