@@ -434,7 +434,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-10 | Logs estruturados, contagem de chamadas LLM, timeouts e erros `503` | RNF05, RNF06 | T-08, T-09 | ☑ |
 | T-11 | Frontend: chat, histórico, badges, estados de loading/erro, aviso 192 | AC-RF04-1..4 | T-01 (contrato) | ☑ |
 | T-12 | Dockerfiles backend/frontend, serviços no compose, ingestão automática se coleção vazia | AC-RF05-1..2 | T-04, T-11 | ☑ |
-| T-13 | Testes unitários e de integração (seção 7.1–7.2) | Todos os ACs automatizáveis | T-08, T-09 | ☐ |
+| T-13 | Testes unitários e de integração (seção 7.1–7.2) | Todos os ACs automatizáveis | T-08, T-09 | ☑ |
 | T-14 | Dataset de avaliação + runner; registrar resultados no README | AC-RF02-10, AC-RF02-13 | T-13 | ☐ |
 | T-15 | README: arquitetura, decisões, como rodar, como trocar de nicho, resultados da avaliação | — | T-12, T-14 | ☐ |
 

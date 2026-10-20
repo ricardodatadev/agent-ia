@@ -6,27 +6,27 @@
 **ACs:** todos os automatizáveis · **Depende de:** T-08, T-09
 
 ### Unitários (`tests/unit/`, sem Ollama/Qdrant)
-- [ ] `test_pii_regex.py` — CPF (com/sem máscara), CNS, telefone, e-mail
-- [ ] `test_pii_regex.py` — falsos positivos: horários, doses, datas, idades **não** bloqueiam
-- [ ] `test_jev_parsing.py` — NOUL, CHOICE, SCORE: JSON válido, inválido, fora do domínio
-- [ ] `test_jev_parsing.py` / `test_routing.py` — CHOICE inválido → retry → `CONSULTA_RAG`; SCORE inválido → `1`; NOUL inválido → retry → `INDETERMINADO`
-- [ ] `test_routing.py` — classificação/urgência; arestas condicionais cobertas no grafo completo (`test_graph_*.py`)
-- [ ] `test_tools.py` — args válidos, especialidade ausente/inválida, formato do protocolo
-- [ ] `test_chunking.py` — tamanho/overlap, IDs determinísticos
+- [x] `test_pii_regex.py` — CPF (com/sem máscara), CNS, telefone, e-mail
+- [x] `test_pii_regex.py` — falsos positivos: horários, doses, datas, idades **não** bloqueiam
+- [x] `test_jev_parsing.py` — NOUL, CHOICE, SCORE: JSON válido, inválido, fora do domínio
+- [x] `test_jev_parsing.py` / `test_routing.py` — CHOICE inválido → retry → `CONSULTA_RAG`; SCORE inválido → `1`; NOUL inválido → retry → `INDETERMINADO`
+- [x] `test_routing.py` — classificação/urgência; arestas condicionais cobertas no grafo completo (`test_graph_*.py`)
+- [x] `test_tools.py` — args válidos, especialidade ausente/inválida, formato do protocolo
+- [x] `test_chunking.py` — tamanho/overlap, IDs determinísticos
 
 ### Integração (`tests/integration/`)
-- [ ] Fixtures de **LLM falso** (respostas roteirizadas) e **retriever falso**
-- [ ] `test_graph_bloqueio.py` — regex: 0 chamadas LLM; NOUL-LLM: sem CHOICE/RAG
-- [ ] `test_graph_rag.py` — `score >= 3` → generate; `< 3` → fallback sem geração
-- [ ] `test_graph_tools.py` — agendamento e atendente, incluindo "192" na urgência
-- [ ] `test_graph_rotas.py` + `test_api.py` — rotas e `llm_calls` por rota dentro dos limites (RNF01)
-- [ ] `test_api.py` (`TestClient`) — contrato de `/chat`, `422`, `503` com dependência simulada indisponível
-- [ ] `test_ingest.py` — Qdrant em memória (sempre roda); `test_stack_real.py` — `@pytest.mark.integration`, Qdrant real: idempotência (AC-RF01-2)
-- [ ] **Extra:** `test_stack_real.py` — regressão de recuperação com `bge-m3` real (top-1 de 5 perguntas) e separação de similaridade fora do nicho
+- [x] Fixtures de **LLM falso** (respostas roteirizadas) e **retriever falso**
+- [x] `test_graph_bloqueio.py` — regex: 0 chamadas LLM; NOUL-LLM: sem CHOICE/RAG
+- [x] `test_graph_rag.py` — `score >= 3` → generate; `< 3` → fallback sem geração
+- [x] `test_graph_tools.py` — agendamento e atendente, incluindo "192" na urgência
+- [x] `test_graph_rotas.py` + `test_api.py` — rotas e `llm_calls` por rota dentro dos limites (RNF01)
+- [x] `test_api.py` (`TestClient`) — contrato de `/chat`, `422`, `503` com dependência simulada indisponível
+- [x] `test_ingest.py` — Qdrant em memória (sempre roda); `test_stack_real.py` — `@pytest.mark.integration`, Qdrant real: idempotência (AC-RF01-2)
+- [x] **Extra:** `test_stack_real.py` — regressão de recuperação com `bge-m3` real (top-1 de 5 perguntas) e separação de similaridade fora do nicho
 
 ### Verificação
-- [ ] `pytest` (padrão exclui `integration`) passando sem Docker — **147 passed**
-- [ ] `pytest -m integration` passando com a stack do compose em execução — **7 passed**
+- [x] `pytest` (padrão exclui `integration`) passando sem Docker — **170 passed** (20/10, ~30 s)
+- [x] `pytest -m integration` passando com a stack do compose em execução — **8 passed** (20/10, ~75 s: inclui reingestão real com bge-m3 numa coleção temporária e checagem da API no ar)
 
 ## T-14 — Dataset e runner de avaliação
 **ACs:** AC-RF02-10, AC-RF02-13 · **Depende de:** T-13
