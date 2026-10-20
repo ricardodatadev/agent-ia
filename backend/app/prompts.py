@@ -25,3 +25,32 @@ def format_context(chunks: list[RetrievedChunk]) -> str:
 
 def generate_user_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
     return f"CONTEXTO:\n{format_context(chunks)}\n\nPERGUNTA DO PACIENTE:\n{question}"
+
+
+# --------------------------------------------------------------------------- Score (modo local)
+
+SCORE_SYSTEM = """Você avalia se trechos de documentos de uma UBS contêm a resposta para a pergunta de um paciente.
+
+1. Leia todos os trechos até o fim: a resposta pode estar no meio ou no final de um trecho.
+2. Em "evidencia", copie LITERALMENTE a frase dos trechos que responde à pergunta. Se nenhuma frase responde, escreva "nenhuma".
+3. Em "score", dê uma nota de 1 a 5:
+   1 = os trechos não têm relação com a pergunta
+   2 = mesmo assunto, mas a resposta não está nos trechos
+   3 = responde parcialmente; o essencial está presente
+   4 = responde à maior parte da pergunta
+   5 = responde completamente
+
+Responda apenas com JSON: {"evidencia": "<frase copiada ou nenhuma>", "score": <1 a 5>}"""
+
+
+def score_user_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
+    # A pergunta vem depois do contexto: modelos pequenos dão mais peso ao fim do prompt.
+    return f"TRECHOS:\n{format_context(chunks)}\n\nPERGUNTA DO PACIENTE:\n{question}\n\nJSON:"
+
+
+# --------------------------------------------------------------------------- textos fixos (sem LLM)
+
+FALLBACK_REPLY = (
+    "Não encontrei essa informação nos documentos da UBS. "
+    "Recomendo confirmar na recepção ou pelo telefone da unidade."
+)

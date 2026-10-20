@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
 from app.graph import GraphDeps, build_graph, to_sources
-from app.llm import make_chat_model
+from app.judge import LLMJudge
+from app.llm import make_chat_model, make_judge_model
 from app.models import ChatRequest, ChatResponse, GraphState
 from app.rag import VectorStore
 
@@ -16,7 +17,9 @@ def build_deps(settings: Settings) -> GraphDeps:
     return GraphDeps(
         retriever=VectorStore.from_settings(settings),
         chat_model=make_chat_model(settings),
+        judge=LLMJudge(make_judge_model(settings)),
         top_k=settings.top_k,
+        score_threshold=settings.score_threshold,
     )
 
 

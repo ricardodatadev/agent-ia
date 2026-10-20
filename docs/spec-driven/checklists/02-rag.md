@@ -37,13 +37,14 @@
 ## T-06 — Score + `fallback`
 **ACs:** AC-RF02-11, AC-RF02-12 · **Depende de:** T-05
 
-- [ ] `prompts.py` — prompt do SCORE retornando `{"score": 1..5}` (temperatura 0, ≤ 50 tokens de saída — `make_judge_model` com `format="json"`)
-- [ ] `guardrails.py` — `evaluate_score(question, contexts) -> int` com validação Pydantic (`parse_verdict` reutilizável pelas outras decisões)
-- [ ] Saída inválida → `score = 1` (falha segura)
-- [ ] Nenhum chunk recuperado → `fallback` direto, sem chamar o SCORE
-- [ ] Aresta condicional: `score >= SCORE_THRESHOLD` → `generate`; senão → `fallback`
-- [ ] Nó `fallback` com texto fixo da SPEC (sem chamada ao LLM), `fallback = true` e sem `sources`
-- [ ] Verificar AC-RF02-11: pergunta coberta → `score >= 3`, `sources` ≥ 1 (LLM falso)
-- [ ] Verificar AC-RF02-12: pergunta não coberta → `fallback = true`, nenhuma chamada de geração (LLM falso)
-- [ ] Verificar AC-RF02-12 com Ollama real: "A UBS tem estacionamento?" → `score=2`, fallback
-- [ ] AC-RF02-11 com Ollama real: falso negativo da vacina corrigido na T-14 (SCORE ancorado em evidência, ADR-11) — 12/12 respondidas
+- [x] `prompts.py` — prompt do SCORE retornando `{"evidencia": ..., "score": 1..5}` já no formato do ADR-11, com a pergunta após o contexto (temperatura 0, teto de 120 tokens — `make_judge_model` com `format="json"`)
+- [x] `judge.py` — `LLMJudge.score(question, contexts) -> (nota, chamadas)` com validação Pydantic (`parse_verdict` reutilizável pelas outras decisões). Implementado direto no módulo da estrutura final (SPEC §5.4), em vez de `guardrails.py`, para não mover código na T-22
+- [x] Saída inválida → `score = 1` (falha segura)
+- [x] Nenhum chunk recuperado → `fallback` direto, sem chamar o SCORE
+- [x] Aresta condicional: `score >= SCORE_THRESHOLD` → `generate`; senão → `fallback`
+- [x] Nó `fallback` com texto fixo da SPEC (sem chamada ao LLM), `fallback = true` e sem `sources`
+- [x] Verificar AC-RF02-11: pergunta coberta → `score >= 3`, `sources` ≥ 1 (LLM falso)
+- [x] Verificar AC-RF02-12: pergunta não coberta → `fallback = true`, nenhuma chamada de geração (LLM falso)
+- [x] Verificar AC-RF02-12 com Ollama real: "A UBS tem estacionamento?" → `score=1`, fallback; "Qual o nome do diretor da UBS?" → `score=1`, fallback; "A UBS aceita plano de saúde particular?" → `score=2`, fallback (após a correção abaixo)
+- [x] **Achado e correção (revisão do ADR-11):** depois de outras requisições, o Llama deu nota 4 a "plano de saúde particular" citando uma frase **real** de outro assunto (especialidades fora da UBS), o que gerou uma resposta inventada. A conferência passou a exigir também um termo de conteúdo em comum entre a pergunta e a evidência (ou o título da seção dela). Teste de regressão em `test_jev_parsing.py`
+- [x] AC-RF02-11 com Ollama real: SCORE já nasce ancorado em evidência (ADR-11) — vacina da gripe, glicemia, documentos e horário da UBS com nota 5 e resposta correta (20/10); medição completa (12 casos) na T-14

@@ -10,9 +10,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from app.judge import LLMJudge
 from app.llm import message_text
 from app.models import ChatTurn, GraphState, RetrievedChunk, Source
-from app.prompts import GENERATE_SYSTEM, generate_user_prompt
+from app.prompts import FALLBACK_REPLY, GENERATE_SYSTEM, generate_user_prompt
 
 SNIPPET_CHARS = 240
 
@@ -25,7 +26,9 @@ class Retriever(Protocol):
 class GraphDeps:
     retriever: Retriever
     chat_model: BaseChatModel
+    judge: LLMJudge
     top_k: int = 3
+    score_threshold: int = 3
 
 
 Node = Callable[[GraphState], dict[str, Any]]
@@ -58,6 +61,13 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
     def retrieve(state: GraphState) -> dict[str, Any]:
         return {"route": "CONSULTA_RAG", "contexts": deps.retriever.search(state["message"], deps.top_k)}
 
+    def score(state: GraphState) -> dict[str, Any]:
+        value, calls = deps.judge.score(state["message"], state["contexts"])
+        return {"score": value, "llm_calls": state.get("llm_calls", 0) + calls}
+
+    def fallback(state: GraphState) -> dict[str, Any]:
+        return {"reply": FALLBACK_REPLY, "fallback": True}
+
     def generate(state: GraphState) -> dict[str, Any]:
         messages = [
             SystemMessage(GENERATE_SYSTEM),
@@ -67,10 +77,18 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         reply = message_text(deps.chat_model.invoke(messages))
         return {"reply": reply, "fallback": False, "llm_calls": state.get("llm_calls", 0) + 1}
 
+    def after_retrieve(state: GraphState) -> str:
+        return "score" if state["contexts"] else "fallback"  # sem chunks: nem chama o Score
+
+    def after_score(state: GraphState) -> str:
+        return "generate" if (state.get("score") or 0) >= deps.score_threshold else "fallback"
+
     graph = StateGraph(GraphState)
-    graph.add_node("retrieve", timed("retrieve", retrieve))
-    graph.add_node("generate", timed("generate", generate))
+    for name, node in {"retrieve": retrieve, "score": score, "generate": generate, "fallback": fallback}.items():
+        graph.add_node(name, timed(name, node))
     graph.add_edge(START, "retrieve")
-    graph.add_edge("retrieve", "generate")
+    graph.add_conditional_edges("retrieve", after_retrieve, ["score", "fallback"])
+    graph.add_conditional_edges("score", after_score, ["generate", "fallback"])
     graph.add_edge("generate", END)
+    graph.add_edge("fallback", END)
     return graph.compile()

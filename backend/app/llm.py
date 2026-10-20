@@ -8,6 +8,7 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 from app.config import Settings
 
 GENERATE_MAX_TOKENS = 400
+JUDGE_MAX_TOKENS = 120
 
 
 def make_chat_model(settings: Settings) -> BaseChatModel:
@@ -17,6 +18,18 @@ def make_chat_model(settings: Settings) -> BaseChatModel:
         base_url=settings.ollama_base_url,
         temperature=0.1,
         num_predict=GENERATE_MAX_TOKENS,
+        client_kwargs={"timeout": settings.llm_timeout_s},
+    )
+
+
+def make_judge_model(settings: Settings) -> BaseChatModel:
+    """Modelo das decisões no modo local: JSON, determinístico e com saída curta (ADR-11)."""
+    return ChatOllama(
+        model=settings.llm_model,
+        base_url=settings.ollama_base_url,
+        temperature=0,
+        num_predict=JUDGE_MAX_TOKENS,
+        format="json",
         client_kwargs={"timeout": settings.llm_timeout_s},
     )
 

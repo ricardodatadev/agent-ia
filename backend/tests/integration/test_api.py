@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.graph import GraphDeps
+from app.judge import LLMJudge
 from app.main import create_app
 from tests.fakes import FakeChatModel, FakeRetriever, chunk
 
@@ -11,8 +12,9 @@ from tests.fakes import FakeChatModel, FakeRetriever, chunk
 @pytest.fixture
 def client() -> TestClient:
     deps = GraphDeps(
-        retriever=FakeRetriever([chunk("A UBS funciona das 7h às 19h.", source="funcionamento.md", section="Horário")]),
+        retriever=FakeRetriever([chunk("A UBS funciona das 7h às 19h.", source="funcionamento.md", section="Horário de atendimento")]),
         chat_model=FakeChatModel(responses=["A UBS funciona das 7h às 19h."] * 10),
+        judge=LLMJudge(FakeChatModel(responses=['{"evidencia": "A UBS funciona das 7h às 19h", "score": 5}'] * 10)),
     )
     return TestClient(create_app(deps=deps))
 
@@ -25,9 +27,10 @@ def test_chat_retorna_contrato_valido(client: TestClient) -> None:
         "request_id", "reply", "route", "guardrail", "tool_call", "score", "fallback", "sources",
     }
     assert body["route"] == "CONSULTA_RAG"
+    assert body["score"] == 5 and body["fallback"] is False
     assert body["reply"] == "A UBS funciona das 7h às 19h."
     assert body["sources"] == [
-        {"source": "funcionamento.md", "section": "Horário", "snippet": "A UBS funciona das 7h às 19h."}
+        {"source": "funcionamento.md", "section": "Horário de atendimento", "snippet": "A UBS funciona das 7h às 19h."}
     ]
 
 
@@ -57,3 +60,14 @@ def test_cors_restrito_as_origens_configuradas(client: TestClient) -> None:
     assert client.options("/chat", headers=headers).headers.get("access-control-allow-origin")
     headers["Origin"] = "http://evil.example"
     assert "access-control-allow-origin" not in client.options("/chat", headers=headers).headers
+
+
+def test_fallback_nao_retorna_fontes() -> None:
+    deps = GraphDeps(
+        retriever=FakeRetriever([chunk("A UBS funciona das 7h às 19h.")]),
+        chat_model=FakeChatModel(),
+        judge=LLMJudge(FakeChatModel(responses=['{"evidencia": "nenhuma", "score": 1}'])),
+    )
+    body = TestClient(create_app(deps=deps)).post("/chat", json={"message": "Tem estacionamento?"}).json()
+    assert body["fallback"] is True
+    assert body["sources"] == []
