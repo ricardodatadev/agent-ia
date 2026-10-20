@@ -1,16 +1,22 @@
 """Ingestão com Qdrant em memória e embeddings falsos (AC-RF01-1..4)."""
 
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from qdrant_client import QdrantClient
 
+from app.config import Settings
 from app.errors import DependencyUnavailable
+from app.graph import GraphDeps
+from app.judge import LLMJudge
+from app.main import create_app
 from app.rag import DATA_DIR, VectorStore
-from tests.fakes import FakeEmbeddings
+from tests.fakes import FakeChatModel, FakeEmbeddings
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -97,3 +103,25 @@ def test_cli_falha_com_mensagem_clara_sem_qdrant() -> None:  # AC-RF01-4
     )
     assert proc.returncode != 0
     assert "qdrant indisponível em http://127.0.0.1:1" in proc.stderr
+
+
+def test_startup_ingere_colecao_vazia_e_pula_se_populada(caplog: pytest.LogCaptureFixture) -> None:
+    store = VectorStore(QdrantClient(":memory:"), FakeEmbeddings(), "ubs_startup")
+    deps = GraphDeps(retriever=store, chat_model=FakeChatModel(), judge=LLMJudge(FakeChatModel()))
+    app = create_app(settings=Settings(auto_ingest=True), deps=deps, health_probe=lambda: {})
+    with caplog.at_level(logging.INFO):
+        with TestClient(app):
+            pass
+        assert store.count() > 0
+        with TestClient(app):
+            pass
+    events = [r.getMessage() for r in caplog.records if r.getMessage().startswith("startup_ingest")]
+    assert events == ["startup_ingest_done", "startup_ingest_skipped"]
+
+
+def test_startup_com_qdrant_fora_nao_derruba_a_api(caplog: pytest.LogCaptureFixture) -> None:
+    broken = VectorStore(QdrantClient(url="http://127.0.0.1:1", timeout=2, check_compatibility=False), FakeEmbeddings(), "x")
+    deps = GraphDeps(retriever=broken, chat_model=FakeChatModel(), judge=LLMJudge(FakeChatModel()))
+    with caplog.at_level(logging.INFO), TestClient(create_app(settings=Settings(auto_ingest=True), deps=deps, health_probe=lambda: {})) as client:
+        assert client.get("/openapi.json").status_code == 200
+    assert any(r.getMessage() == "startup_ingest_failed" for r in caplog.records)

@@ -8,6 +8,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app import llm
 from app.config import Settings
 from app.errors import DependencyUnavailable
 from app.graph import GraphDeps
@@ -182,3 +183,25 @@ def test_historico_com_pii_e_descartado_antes_dos_llms() -> None:
     sent = " ".join(str(m.content) for m in chat.calls[0])
     assert "98765-4321" not in sent
     assert "Tem pediatra?" in sent and "Não compartilhe dados por aqui." in sent
+
+
+def test_aquecimento_carrega_llm_e_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[str, dict]] = []
+
+    def fake_post(url: str, json: dict, timeout: float) -> httpx.Response:
+        sent.append((url, json))
+        return httpx.Response(200, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm.httpx, "post", fake_post)
+    llm.warm_up(Settings(ollama_base_url="http://ollama:11434", llm_model="llama3.2:3b", embed_model="bge-m3"))
+    (gen_url, gen), (emb_url, emb) = sent
+    assert gen_url == "http://ollama:11434/api/generate"
+    assert gen["model"] == "llama3.2:3b" and gen["keep_alive"] == -1 and gen["options"] == {"num_predict": 1}
+    assert emb_url == "http://ollama:11434/api/embed" and emb["model"] == "bge-m3"
+
+
+def test_aquecimento_com_ollama_fora_nao_impede_a_subida(caplog: pytest.LogCaptureFixture) -> None:
+    settings = Settings(ollama_base_url="http://127.0.0.1:1", qdrant_url="http://127.0.0.1:1", llm_timeout_s=2, auto_ingest=False)
+    with caplog.at_level(logging.INFO), TestClient(create_app(settings=settings)) as client:
+        assert client.get("/openapi.json").status_code == 200
+    assert any(r.getMessage() == "startup_warmup_failed" for r in caplog.records)

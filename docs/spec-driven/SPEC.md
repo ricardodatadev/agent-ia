@@ -227,6 +227,7 @@ class ToolResult(BaseModel):
 - `docker compose up` sobe tudo; o backend aguarda Qdrant e Ollama via `healthcheck` + `depends_on: condition: service_healthy`.
 - Download dos modelos Ollama (`llama3.2:3b`, `bge-m3`) por serviço/entrypoint de inicialização idempotente.
 - Ingestão: executada no startup do backend **somente se a coleção estiver vazia** (reaproveita a lógica do `ingest.py`); também disponível manualmente (AC-RF01-1).
+- Aquecimento (ADR-10): no startup, depois da ingestão e antes de aceitar requisições, o backend carrega o LLM e o modelo de embeddings no Ollama (1 token e 1 embedding, `keep_alive=-1`) e executa uma vez cada decisão do modo local (Noul, Choice, Score) para o Ollama manter os prompts de sistema em cache; falha no aquecimento vai para o log e não impede a subida. Motivo (reconstrução, 2026-10-20): sem aquecimento, as duas primeiras perguntas após `docker compose up` deram 503 (carregamento a frio do modelo em CPU, ~95 s, estourava o timeout de 120 s); só carregando o modelo, a 1ª pergunta RAG ainda levava ~3 min (cada prompt de sistema ~30 s na 1ª avaliação).
 - Configuração por `.env` (com `.env.example` versionado, contendo blocos comentados para cada opção de LLM). Variáveis:
   - **LLM:** `LLM_PROVIDER` (`ollama` | `anthropic` | `google`), `LLM_MODEL`, `LLM_TIMEOUT_S`, `ANTHROPIC_API_KEY`, `ANTHROPIC_EFFORT`, `GOOGLE_API_KEY` (ADR-13).
   - **Motor de decisões:** `JEV_PROVIDER` (`auto` | `typesafe` | `llm`), `TYPESAFE_API_KEY`, `TYPESAFE_MODEL`, `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_MIN_CONFIDENCE` (RF06).
@@ -432,7 +433,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-09 | `tools.py` (contratos + mocks) e nós `tool_agendamento`/`tool_atendente` com validação | AC-RF03-1..4, AC-RF02-8 | T-07 | ☑ |
 | T-10 | Logs estruturados, contagem de chamadas LLM, timeouts e erros `503` | RNF05, RNF06 | T-08, T-09 | ☑ |
 | T-11 | Frontend: chat, histórico, badges, estados de loading/erro, aviso 192 | AC-RF04-1..4 | T-01 (contrato) | ☑ |
-| T-12 | Dockerfiles backend/frontend, serviços no compose, ingestão automática se coleção vazia | AC-RF05-1..2 | T-04, T-11 | ☐ |
+| T-12 | Dockerfiles backend/frontend, serviços no compose, ingestão automática se coleção vazia | AC-RF05-1..2 | T-04, T-11 | ☑ |
 | T-13 | Testes unitários e de integração (seção 7.1–7.2) | Todos os ACs automatizáveis | T-08, T-09 | ☐ |
 | T-14 | Dataset de avaliação + runner; registrar resultados no README | AC-RF02-10, AC-RF02-13 | T-13 | ☐ |
 | T-15 | README: arquitetura, decisões, como rodar, como trocar de nicho, resultados da avaliação | — | T-12, T-14 | ☐ |

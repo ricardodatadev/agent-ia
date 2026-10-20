@@ -38,4 +38,4 @@
 - [x] AC-RF04-4: utilizável em 375px de largura (sem scroll horizontal: `scrollWidth = 375`)
 - [x] **Achado na verificação:** selos de guardrail e de ação quebravam linha de forma ruim em 375 px (protocolo em 3 linhas) → selos com quebra controlada e protocolo sem quebra
 - [x] `npm run build` (typecheck + build) sem erros
-- [ ] Verificação com Ollama real na UI (Edge headless, stack do compose) e screenshot em `docs/screenshot.png` — **pendente: depende da stack completa no Docker (T-12)**
+- [x] Verificação com Ollama real na UI (Edge headless, stack do compose) e screenshot em `docs/screenshot.png` — feita na T-12: RAG com fontes e relevância 5/5, urgência com prioridade e 192 (4 s), CPF bloqueado com selo LGPD (0,1 s)

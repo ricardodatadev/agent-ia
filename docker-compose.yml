@@ -55,6 +55,41 @@ services:
         done
     restart: "no"
 
+  backend:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false # sem .env, valem os padrões do config.py
+    environment:
+      # Endereços internos da rede do compose (sobrescrevem os do .env, pensados para execução local)
+      OLLAMA_BASE_URL: http://ollama:11434
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 300s # 1ª subida em CPU: ingestão (~1 min) + aquecimento dos modelos e prompts (~2-3 min)
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000 # URL vista pelo navegador
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   qdrant_data:
   ollama_models:

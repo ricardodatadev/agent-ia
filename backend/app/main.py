@@ -4,7 +4,8 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
@@ -17,8 +18,8 @@ from app.errors import DependencyUnavailable
 from app.graph import GraphDeps, build_graph, to_sources
 from app.guardrails import find_pii
 from app.judge import LLMJudge
-from app.llm import LLM_ERRORS, make_chat_model, make_judge_model
-from app.models import ChatRequest, ChatResponse, GraphState
+from app.llm import LLM_ERRORS, make_chat_model, make_judge_model, warm_up
+from app.models import ChatRequest, ChatResponse, GraphState, RetrievedChunk
 from app.rag import VectorStore
 
 logger = logging.getLogger("app")
@@ -124,6 +125,37 @@ def request_log(state: GraphState, req: ChatRequest, total_ms: float) -> dict[st
     }
 
 
+def startup_ingest(store: VectorStore) -> None:
+    """Ingere os documentos só se a coleção estiver vazia; falha vai para o log, não derruba a API."""
+    try:
+        report = store.ensure_ingested()
+    except Exception as exc:  # noqa: BLE001 — a API sobe mesmo sem ingestão (o /health mostra o problema)
+        logger.error("startup_ingest_failed", extra={"error": type(exc).__name__})
+        return
+    if report is None:
+        logger.info("startup_ingest_skipped", extra={"reason": "coleção já populada"})
+    else:
+        logger.info("startup_ingest_done", extra={"files": report.files, "chunks": report.chunks, "skipped": report.skipped})
+
+
+def startup_warm_up(settings: Settings, deps: GraphDeps) -> None:
+    """Carrega os modelos e processa uma vez os prompts das decisões (o Ollama reaproveita o prefixo em cache).
+
+    Sem isso, a 1ª pergunta após subir levava ~3 min em CPU (cada prompt de sistema ~30 s na 1ª vez).
+    """
+    start = time.perf_counter()
+    sample = RetrievedChunk(source="aquecimento", chunk_index=0, text="A UBS funciona de segunda a sexta.")
+    try:
+        warm_up(settings)
+        deps.judge.noul("Olá")
+        deps.judge.choice("Olá", [])
+        deps.judge.score("Olá", [sample])
+    except LLM_ERRORS as exc:  # sobe mesmo assim; a 1ª pergunta só fica mais lenta
+        logger.warning("startup_warmup_failed", extra={"model": settings.llm_model, "error": type(exc).__name__})
+        return
+    logger.info("startup_warmup_done", extra={"model": settings.llm_model, "ms": round((time.perf_counter() - start) * 1000)})
+
+
 # --------------------------------------------------------------------------- app
 
 
@@ -135,13 +167,23 @@ def create_app(
     """`deps` e `health_probe` permitem injetar dublês nos testes."""
     configure_logging()
     settings = settings or get_settings()
+    real_llm = deps is None  # dublês de teste não aquecem nada
     if deps is None:
         deps = build_deps(settings)
         if health_probe is None and isinstance(deps.retriever, VectorStore):
             health_probe = make_health_probe(settings, deps.retriever)
     graph = build_graph(deps)
+    store = deps.retriever if isinstance(deps.retriever, VectorStore) else None
 
-    app = FastAPI(title="Assistente UBS · Agente de IA", version="1.0.0")
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        if settings.auto_ingest and store is not None:
+            startup_ingest(store)
+        if real_llm:
+            startup_warm_up(settings, deps)
+        yield
+
+    app = FastAPI(title="Assistente UBS · Agente de IA", version="1.0.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
