@@ -422,7 +422,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | ID | Tarefa | ACs | Depende de | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | T-01 | Esqueleto do backend: `config.py`, `models.py`, `main.py` com `/health` e `/chat` stub; `requirements.txt` | AC-RF05-1 (parcial) | — | ☑ |
-| T-02 | `docker-compose.yml` com `qdrant` + `ollama` (healthchecks, volumes, pull de modelos) e `.env.example` | AC-RF05-2 | T-01 | ☐ |
+| T-02 | `docker-compose.yml` com `qdrant` + `ollama` (healthchecks, volumes, pull de modelos) e `.env.example` | AC-RF05-2 | T-01 | ☑ |
 | T-03 | Documentos de exemplo em `data/` | — | — | ☐ |
 | T-04 | `rag.py` (chunking, embeddings, upsert idempotente, busca) + `scripts/ingest.py` | AC-RF01-1..4 | T-02, T-03 | ☐ |
 | T-05 | `llm.py` + `prompts.py` + grafo mínimo: `retrieve → generate` exposto em `/chat` | AC-RF02-11 (parcial) | T-04 | ☐ |

@@ -24,14 +24,14 @@
 ## T-02 — Infra base no Docker Compose
 **ACs:** AC-RF05-2 · **Depende de:** T-01
 
-- [ ] `docker-compose.yml` com serviço `qdrant` (porta 6333, volume nomeado, healthcheck)
-- [ ] Serviço `ollama` (porta 11434, volume nomeado para modelos, healthcheck)
-- [ ] Pull idempotente de `llama3.2:3b` (antes `llama3.1:8b`, ver ADR-09) e `bge-m3` (serviço `ollama-pull`: só baixa se `ollama show` falhar)
-- [ ] `.env.example` com todas as variáveis de `config.py`
-- [ ] `.env` no `.gitignore`
-- [ ] `docker compose config` válido
-- [ ] Verificar: `docker compose up qdrant ollama` sobe saudável (verificado em 19/10, junto da T-12)
-- [ ] Verificar: segundo `up` **não** baixa os modelos novamente (AC-RF05-2) — log: "Modelo llama3.2:3b já disponível."
+- [x] `docker-compose.yml` com serviço `qdrant` (porta 6333, volume nomeado, healthcheck)
+- [x] Serviço `ollama` (porta 11434, volume nomeado para modelos, healthcheck)
+- [x] Pull idempotente de `llama3.2:3b` (antes `llama3.1:8b`, ver ADR-09) e `bge-m3` (serviço `ollama-pull`: só baixa se `ollama show` falhar)
+- [x] `.env.example` com todas as variáveis de `config.py`
+- [x] `.env` no `.gitignore`
+- [x] `docker compose config` válido
+- [x] Verificar: `docker compose up qdrant ollama` sobe saudável (verificado em 20/10: ambos `healthy`)
+- [x] Verificar: segundo `up` **não** baixa os modelos novamente (AC-RF05-2) — log: "Modelo llama3.2:3b já disponível." e "Modelo bge-m3 já disponível." (volume reaproveitado)
 
 ## T-03 — Documentos de exemplo
 **ACs:** — · **Depende de:** —
