@@ -2,17 +2,27 @@
 
 import json
 import re
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, ValidationError
 
 from app.llm import message_text
-from app.models import ChatTurn, Intent, RetrievedChunk
-from app.prompts import CHOICE_SYSTEM, SCORE_SYSTEM, choice_user_prompt, score_user_prompt
+from app.models import BlockReason, ChatTurn, Intent, RetrievedChunk
+from app.prompts import (
+    CHOICE_SYSTEM,
+    NOUL_SYSTEM,
+    SCORE_SYSTEM,
+    choice_user_prompt,
+    noul_user_prompt,
+    score_user_prompt,
+)
 from app.rag import SECTION_SEPARATOR
 from app.text import normalize, words
+
+# Noul
+NOUL_ATTEMPTS = 2  # 1 nova tentativa; persistindo, bloqueia como INDETERMINADO (falha segura)
 
 # Choice
 DEFAULT_INTENT: Intent = "CONSULTA_RAG"  # o Score protege contra resposta sem evidência
@@ -35,6 +45,11 @@ STOPWORDS = frozenset(
 
 V = TypeVar("V", bound=BaseModel)
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+
+
+class NoulVerdict(BaseModel):
+    bloquear: bool
+    motivo: Literal["OFENSA", "PII"] | None = None
 
 
 class ChoiceVerdict(BaseModel):
@@ -118,6 +133,16 @@ class LLMJudge:
 
     def _ask(self, system: str, user: str) -> str:
         return message_text(self.model.invoke([SystemMessage(system), HumanMessage(user)]))
+
+    def noul(self, message: str) -> tuple[BlockReason | None, int]:
+        """Motivo do bloqueio (None = aprovada). Inválida 2x, ou bloqueio sem motivo → INDETERMINADO."""
+        for attempt in range(1, NOUL_ATTEMPTS + 1):
+            verdict = parse_verdict(self._ask(NOUL_SYSTEM, noul_user_prompt(message)), NoulVerdict)
+            if verdict:
+                if not verdict.bloquear:
+                    return None, attempt
+                return verdict.motivo or "INDETERMINADO", attempt
+        return "INDETERMINADO", NOUL_ATTEMPTS
 
     def choice(self, message: str, history: list[ChatTurn]) -> tuple[Intent, int]:
         """Intenção da mensagem. Inválida → 1 nova tentativa; persistindo → CONSULTA_RAG."""

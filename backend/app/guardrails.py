@@ -1,10 +1,20 @@
 """Camadas determinísticas (zero tokens) e orquestração das decisões (SPEC RF02, ADR-07)."""
 
+import re
 from dataclasses import dataclass
 
 from app.judge import LLMJudge
-from app.models import ChatTurn, Intent
+from app.models import ChatTurn, GuardrailResult, Intent
 from app.text import normalize
+
+# Padrões de PII (Apêndice C.1), avaliados em ordem: o primeiro que casar define o tipo.
+PII_PATTERNS: dict[str, re.Pattern[str]] = {
+    "cpf": re.compile(r"(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)"),
+    "cns": re.compile(r"(?<!\d)[1-9]\d{2}\s?\d{4}\s?\d{4}\s?\d{4}(?!\d)"),
+    "rg": re.compile(r"(?<!\d)\d{1,2}\.\d{3}\.\d{3}-[\dxX](?!\w)"),
+    "telefone": re.compile(r"(?<!\d)(?:\(?\d{2}\)?\s?)?9?\d{4}-?\d{4}(?!\d)"),
+    "email": re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),
+}
 
 # Termos de urgência normalizados (Apêndice C.2): casam como substring do texto sem acentos.
 URGENCY_TERMS = (
@@ -26,6 +36,31 @@ def is_urgent(text: str) -> bool:
 
 def mentions_suicide(text: str) -> bool:
     return _has_any(text, SUICIDE_TERMS)
+
+
+def find_pii(text: str) -> str | None:
+    """Tipo do primeiro dado pessoal encontrado por regex, ou None."""
+    for kind, pattern in PII_PATTERNS.items():
+        if pattern.search(text):
+            return kind
+    return None
+
+
+@dataclass(frozen=True)
+class NoulDecision:
+    guardrail: GuardrailResult | None
+    pii_type: str | None
+    llm_calls: int
+
+
+def check_input(message: str, judge: LLMJudge) -> NoulDecision:
+    """Regex primeiro (zero tokens); só o que ela não pega vai para o motor de decisões (ADR-01)."""
+    pii_type = find_pii(message)
+    if pii_type:
+        return NoulDecision(GuardrailResult(motivo="PII", camada="regex"), pii_type, llm_calls=0)
+    motivo, calls = judge.noul(message)
+    guardrail = GuardrailResult(motivo=motivo, camada="llm") if motivo else None
+    return NoulDecision(guardrail, None, llm_calls=calls)
 
 
 @dataclass(frozen=True)

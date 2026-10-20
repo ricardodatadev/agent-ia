@@ -23,33 +23,33 @@
 **ACs:** AC-RF02-1, AC-RF02-2, AC-RF02-3, AC-RF02-4, AC-RF02-5 · **Depende de:** T-07
 
 ### Camada determinística (regex)
-- [ ] CPF com e sem máscara (`123.456.789-09`, `12345678909`)
-- [ ] **Extra:** RG com máscara (`12.345.678-9`)
-- [ ] CNS (15 dígitos)
-- [ ] Telefone (com/sem DDD, com/sem máscara)
-- [ ] E-mail
-- [ ] Garantir que **não** bloqueia: horários ("8h às 16h"), doses ("0,5 ml"), datas, idades
-- [ ] Match → bloqueio `PII`, `camada = "regex"`, **sem chamar o LLM**
+- [x] CPF com e sem máscara (`123.456.789-09`, `12345678909`)
+- [x] **Extra:** RG com máscara (`12.345.678-9`)
+- [x] CNS (15 dígitos)
+- [x] Telefone (com/sem DDD, com/sem máscara)
+- [x] E-mail
+- [x] Garantir que **não** bloqueia: horários ("8h às 16h"), doses ("0,5 ml"), datas, idades
+- [x] Match → bloqueio `PII`, `camada = "regex"`, **sem chamar o LLM**
 
 ### Camada LLM
-- [ ] `prompts.py` — prompt NOUL retornando `{"bloquear": bool, "motivo": "OFENSA" | "PII" | null}`
-- [ ] Cobrir PII semântica: nome completo de terceiros, resultados de exames, histórico médico de outros pacientes
-- [ ] Saída inválida → 1 retry; persistindo, **bloqueia como `INDETERMINADO`** (falha segura) — decisão registrada na SPEC RF02.1
+- [x] `prompts.py` — prompt NOUL retornando `{"bloquear": bool, "motivo": "OFENSA" | "PII" | null}`
+- [x] Cobrir PII semântica: nome completo de terceiros, resultados de exames, histórico médico de outros pacientes
+- [x] Saída inválida → 1 retry; persistindo, **bloqueia como `INDETERMINADO`** (falha segura) — decisão registrada na SPEC RF02.1
 
 ### Grafo e respostas
-- [ ] Nó `noul` como primeiro nó após `START`
-- [ ] Aresta condicional: bloqueio → `resposta_bloqueio` → `END`; ok → `choice`
-- [ ] Textos fixos de `OFENSA`, `PII` e `INDETERMINADO` conforme SPEC RF02.1
-- [ ] **Extra:** mensagem bloqueada que relata urgência recebe também a orientação de ligar 192
-- [ ] `route = "BLOQUEIO"`, `guardrail = {motivo, camada}`
+- [x] Nó `noul` como primeiro nó após `START`
+- [x] Aresta condicional: bloqueio → `resposta_bloqueio` → `END`; ok → `choice`
+- [x] Textos fixos de `OFENSA`, `PII` e `INDETERMINADO` conforme SPEC RF02.1
+- [x] **Extra:** mensagem bloqueada que relata urgência recebe também a orientação de ligar 192
+- [x] `route = "BLOQUEIO"`, `guardrail = {motivo, camada}`
 
 ### Privacidade em logs
-- [ ] Mensagem bloqueada por PII: logar apenas `request_id`, motivo, camada e tamanho da mensagem (**nunca** o texto)
+- [x] Mensagem bloqueada por PII: logar apenas `request_id`, motivo, camada e tamanho da mensagem (**nunca** o texto) — evento `guardrail_block`, também com o tipo de PII da regex (`cpf`, `email`…), sem o valor
 
 ### Verificação
-- [ ] AC-RF02-1: "meu cpf é 123.456.789-09" → `PII`, 0 chamadas LLM, 0 buscas Qdrant
-- [ ] AC-RF02-2: xingamento → `OFENSA`, sem CHOICE/RAG/tools
-- [ ] AC-RF02-3: "quero ver o histórico médico do paciente João da Silva" → `PII`
-- [ ] AC-RF02-4: "qual o horário da vacina da gripe?" → aprovado, segue para CHOICE
-- [ ] AC-RF02-5: log de mensagem bloqueada por PII não contém o texto
-- [ ] Verificar com Llama real a camada LLM: ofensa → `OFENSA/llm`; "resultado do exame da Maria Souza" → `PII/llm` (medição formal na T-14)
+- [x] AC-RF02-1: "meu cpf é 123.456.789-09" → `PII`, 0 chamadas LLM, 0 buscas Qdrant
+- [x] AC-RF02-2: xingamento → `OFENSA`, sem CHOICE/RAG/tools
+- [x] AC-RF02-3: "quero ver o histórico médico do paciente João da Silva" → `PII`
+- [x] AC-RF02-4: "qual o horário da vacina da gripe?" → aprovado, segue para CHOICE
+- [x] AC-RF02-5: log de mensagem bloqueada por PII não contém o texto
+- [x] Verificar com Llama real a camada LLM: ofensa → `OFENSA/llm`; "resultado do exame da Maria Souza" → `PII/llm` (medição formal na T-14). Smoke test em 20/10: **11/11** — 2 ofensas, 3 PII semânticas (exame da vizinha — exemplo do prompt —, histórico do João da Silva, telefone pessoal de médica), 5 mensagens legítimas aprovadas (vacina, sintomas próprios, reclamação educada, "Acho que estou tendo um AVC", agendamento) e CPF por regex em 0 s; ~4 s por decisão com o modelo aquecido

@@ -76,11 +76,20 @@ def chunk(text: str, source: str = "exames.md", section: str | None = "Exames", 
     return RetrievedChunk(source=source, section=section, chunk_index=index, text=text, similarity=0.8)
 
 
-def scripted_judge(intencao: str = "CONSULTA_RAG", score: str = '{"evidencia": "nenhuma", "score": 1}') -> Responder:
-    """Resposta do juiz conforme o prompt recebido (Choice ou Score) — independe da ordem das chamadas."""
+NOUL_OK = '{"bloquear": false, "motivo": null}'
+
+
+def scripted_judge(
+    intencao: str = "CONSULTA_RAG",
+    score: str = '{"evidencia": "nenhuma", "score": 1}',
+    noul: str = NOUL_OK,
+) -> Responder:
+    """Resposta do juiz conforme o prompt recebido (Noul, Choice ou Score) — independe da ordem das chamadas."""
 
     def respond(messages: list[BaseMessage]) -> str:
         system = str(messages[0].content)
+        if "filtro de segurança" in system:
+            return noul
         if "classifica a intenção" in system:
             return f'{{"intencao": "{intencao}"}}'
         return score

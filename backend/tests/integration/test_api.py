@@ -66,7 +66,7 @@ def test_fallback_nao_retorna_fontes() -> None:
     deps = GraphDeps(
         retriever=FakeRetriever([chunk("A UBS funciona das 7h às 19h.")]),
         chat_model=FakeChatModel(),
-        judge=LLMJudge(FakeChatModel(responses=[scripted_judge()] * 2)),
+        judge=LLMJudge(FakeChatModel(responses=[scripted_judge()] * 3)),
     )
     body = TestClient(create_app(deps=deps)).post("/chat", json={"message": "Tem estacionamento?"}).json()
     assert body["fallback"] is True

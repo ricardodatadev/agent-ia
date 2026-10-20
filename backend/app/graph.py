@@ -1,5 +1,6 @@
 """Grafo LangGraph do assistente (SPEC §5.1)."""
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -10,17 +11,20 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from app.guardrails import classify_intent
+from app.guardrails import check_input, classify_intent, is_urgent
 from app.judge import LLMJudge
 from app.llm import message_text
 from app.models import ChatTurn, GraphState, Intent, RetrievedChunk, Source
 from app.prompts import (
+    BLOCK_REPLIES,
     EMERGENCY_NOTICE,
     FALLBACK_REPLY,
     GENERATE_SYSTEM,
     OUT_OF_SCOPE_REPLY,
     generate_user_prompt,
 )
+
+logger = logging.getLogger(__name__)
 
 SNIPPET_CHARS = 240
 
@@ -78,6 +82,29 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
 
     # -- triagem
 
+    def noul(state: GraphState) -> dict[str, Any]:
+        decision = check_input(state["message"], deps.judge)
+        if decision.guardrail:
+            # LGPD: só metadados, nunca o texto da mensagem (AC-RF02-5)
+            logger.info(
+                "guardrail_block",
+                extra={
+                    "request_id": state.get("request_id"),
+                    "motivo": decision.guardrail.motivo,
+                    "camada": decision.guardrail.camada,
+                    "pii_type": decision.pii_type,
+                    "message_len": len(state["message"]),
+                },
+            )
+            return {"route": "BLOQUEIO", "guardrail": decision.guardrail, "llm_calls": calls(state, decision.llm_calls)}
+        return {"guardrail": None, "llm_calls": calls(state, decision.llm_calls)}
+
+    def resposta_bloqueio(state: GraphState) -> dict[str, Any]:
+        reply = BLOCK_REPLIES[state["guardrail"].motivo]
+        if is_urgent(state["message"]):  # bloqueada, mas relata urgência: orienta o 192 mesmo assim
+            reply = f"{reply} {EMERGENCY_NOTICE}"
+        return {"reply": reply}
+
     def choice(state: GraphState) -> dict[str, Any]:
         decision = classify_intent(state["message"], state.get("history", []), deps.judge)
         return {"route": decision.intent, "urgent": decision.urgent, "llm_calls": calls(state, decision.llm_calls)}
@@ -116,6 +143,9 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
 
     # -- arestas condicionais
 
+    def after_noul(state: GraphState) -> str:
+        return "resposta_bloqueio" if state.get("guardrail") else "choice"
+
     def after_choice(state: GraphState) -> str:
         return INTENT_NODES[state["route"]]
 
@@ -126,6 +156,8 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         return "generate" if (state.get("score") or 0) >= deps.score_threshold else "fallback"
 
     nodes: dict[str, Node] = {
+        "noul": noul,
+        "resposta_bloqueio": resposta_bloqueio,
         "choice": choice,
         "resposta_fora_nicho": resposta_fora_nicho,
         "tool_agendamento": tool_agendamento,
@@ -139,10 +171,11 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
     for name, node in nodes.items():
         graph.add_node(name, timed(name, node))
 
-    graph.add_edge(START, "choice")
+    graph.add_edge(START, "noul")
+    graph.add_conditional_edges("noul", after_noul, ["resposta_bloqueio", "choice"])
     graph.add_conditional_edges("choice", after_choice, list(INTENT_NODES.values()))
     graph.add_conditional_edges("retrieve", after_retrieve, ["score", "fallback"])
     graph.add_conditional_edges("score", after_score, ["generate", "fallback"])
-    for terminal in ("resposta_fora_nicho", "tool_agendamento", "tool_atendente", "generate", "fallback"):
+    for terminal in ("resposta_bloqueio", "resposta_fora_nicho", "tool_agendamento", "tool_atendente", "generate", "fallback"):
         graph.add_edge(terminal, END)
     return graph.compile()

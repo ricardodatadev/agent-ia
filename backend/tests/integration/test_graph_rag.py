@@ -6,7 +6,7 @@ from app.graph import GraphDeps, build_graph
 from app.judge import LLMJudge
 from app.models import ChatTurn
 from app.prompts import FALLBACK_REPLY
-from tests.fakes import FakeChatModel, FakeRetriever, chunk
+from tests.fakes import NOUL_OK, FakeChatModel, FakeRetriever, chunk
 
 JEJUM = chunk("Glicemia de jejum: jejum de 8 a 12 horas. Água é permitida.", section="Exames › Preparo")
 SCORE_OK = '{"evidencia": "jejum de 8 a 12 horas", "score": 5}'
@@ -20,7 +20,7 @@ def run(
     retriever: FakeRetriever,
     history: list[ChatTurn] | None = None,
 ) -> dict:
-    judge_llm.responses.insert(0, '{"intencao": "CONSULTA_RAG"}')  # Choice antes do Score
+    judge_llm.responses[:0] = [NOUL_OK, '{"intencao": "CONSULTA_RAG"}']  # Noul e Choice antes do Score
     deps = GraphDeps(retriever=retriever, chat_model=chat_llm, judge=LLMJudge(judge_llm), top_k=3)
     return build_graph(deps).invoke({"request_id": "t", "message": message, "history": history or [], "llm_calls": 0})
 
@@ -35,9 +35,9 @@ def test_contexto_relevante_gera_resposta() -> None:  # AC-RF02-11
     assert state["fallback"] is False
     assert state["reply"] == "É preciso jejum de 8 a 12 horas."
     assert state["contexts"] == [JEJUM]
-    assert state["llm_calls"] == 3  # choice + score + generate
+    assert state["llm_calls"] == 4  # noul + choice + score + generate
     assert retriever.queries == ["Preciso de jejum para glicemia?"]
-    assert {"choice", "retrieve", "score", "generate"} <= set(state["timings_ms"])
+    assert {"noul", "choice", "retrieve", "score", "generate"} <= set(state["timings_ms"])
 
 
 def test_contexto_irrelevante_vai_para_fallback_sem_gerar() -> None:  # AC-RF02-12
@@ -48,7 +48,7 @@ def test_contexto_irrelevante_vai_para_fallback_sem_gerar() -> None:  # AC-RF02-
     assert state["fallback"] is True
     assert state["reply"] == FALLBACK_REPLY
     assert state["score"] == 1
-    assert state["llm_calls"] == 2  # choice + score
+    assert state["llm_calls"] == 3  # noul + choice + score
     assert chat.calls == []
 
 
@@ -64,8 +64,8 @@ def test_sem_chunks_vai_direto_para_fallback() -> None:
 
     assert state["fallback"] is True
     assert state.get("score") is None
-    assert len(judge_llm.calls) == 1 and chat.calls == []  # só o Choice
-    assert state["llm_calls"] == 1
+    assert len(judge_llm.calls) == 2 and chat.calls == []  # só Noul e Choice
+    assert state["llm_calls"] == 2
 
 
 def test_score_invalido_vai_para_fallback() -> None:

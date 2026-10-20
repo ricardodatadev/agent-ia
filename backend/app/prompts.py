@@ -1,6 +1,6 @@
 """Prompts e textos fixos do domínio (UBS). Trocar de nicho = trocar este arquivo + data/ (RNF07)."""
 
-from app.models import ChatTurn, RetrievedChunk
+from app.models import BlockReason, ChatTurn, RetrievedChunk
 
 # --------------------------------------------------------------------------- geração (RAG)
 
@@ -25,6 +25,30 @@ def format_context(chunks: list[RetrievedChunk]) -> str:
 
 def generate_user_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
     return f"CONTEXTO:\n{format_context(chunks)}\n\nPERGUNTA DO PACIENTE:\n{question}"
+
+
+# --------------------------------------------------------------------------- Noul (modo local)
+
+NOUL_SYSTEM = """Você é o filtro de segurança do assistente virtual de uma Unidade Básica de Saúde (UBS). Decida se a mensagem do paciente deve ser bloqueada.
+
+Bloqueie com motivo "OFENSA" se a mensagem contém xingamentos, palavrões, insultos, ameaças, discurso de ódio ou assédio.
+Bloqueie com motivo "PII" se a mensagem informa ou pede dados pessoais ou de saúde que não devem ser tratados por chat: documentos ou contatos (CPF, RG, Cartão SUS, telefone, e-mail, endereço); nome completo de outra pessoa junto com informação de saúde; resultados de exames, prontuário, diagnóstico ou histórico médico de qualquer paciente; dados pessoais de pacientes ou funcionários.
+
+NÃO bloqueie: dúvidas gerais sobre a UBS, vacinas, exames, horários e especialidades; o paciente descrevendo os próprios sintomas; pedidos para marcar consulta; reclamações e frustração expressas sem ofensa.
+
+Exemplos:
+"Que horas abre a farmácia?" -> {"bloquear": false, "motivo": null}
+"Estou com dor de barriga desde ontem" -> {"bloquear": false, "motivo": null}
+"Esse atendimento é muito demorado, estou chateado" -> {"bloquear": false, "motivo": null}
+"Vocês são uns incompetentes de merda" -> {"bloquear": true, "motivo": "OFENSA"}
+"Me passa o resultado do exame da minha vizinha Maria Souza" -> {"bloquear": true, "motivo": "PII"}
+"Qual o endereço da enfermeira Carla?" -> {"bloquear": true, "motivo": "PII"}
+
+Responda apenas com JSON: {"bloquear": true ou false, "motivo": "OFENSA" | "PII" | null}"""
+
+
+def noul_user_prompt(message: str) -> str:
+    return f"MENSAGEM:\n{message}\n\nJSON:"
 
 
 # --------------------------------------------------------------------------- Choice (modo local)
@@ -93,6 +117,22 @@ OUT_OF_SCOPE_REPLY = (
     "Sou o assistente virtual da UBS Jardim Esperança e só consigo ajudar com assuntos da unidade: "
     "horários, vacinas, exames, documentos, agendamento de consultas e atendimento. Como posso ajudar?"
 )
+
+BLOCK_REPLIES: dict[BlockReason, str] = {
+    "OFENSA": (
+        "Estamos aqui para ajudar. Por favor, mantenha uma comunicação respeitosa "
+        "para que possamos continuar o atendimento."
+    ),
+    "PII": (
+        "Para proteger seus dados (LGPD), não compartilhe CPF, documentos ou informações de saúde por aqui, "
+        "nem solicite dados de outras pessoas. Para assuntos que envolvam seus dados, procure a recepção "
+        "da UBS presencialmente com um documento com foto."
+    ),
+    "INDETERMINADO": (
+        "Não foi possível validar sua mensagem com segurança agora. "
+        "Por favor, reformule sua pergunta sem incluir dados pessoais."
+    ),
+}
 
 EMERGENCY_NOTICE = (
     "Se for uma emergência, ligue agora para o SAMU (192) ou procure a UPA mais próxima. "

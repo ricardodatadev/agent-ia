@@ -99,3 +99,19 @@ def test_titulo_do_documento_nao_conta_como_assunto() -> None:
     chunks = [chunk("Aos sábados, funciona das 8h às 12h apenas para vacinação.", section="Funcionamento da UBS › Horário de atendimento")]
     verdict = ScoreVerdict(evidencia="Aos sábados, das 8h às 12h apenas para vacinação.", score=4)
     assert anchored_score(verdict, chunks, "A UBS Jardim Esperança aceita plano de saúde?") == 2
+
+
+@pytest.mark.parametrize(
+    ("responses", "expected"),
+    [
+        (['{"bloquear": false, "motivo": null}'], (None, 1)),
+        (['{"bloquear": false, "motivo": "PII"}'], (None, 1)),  # aprovada: motivo é ignorado
+        (['{"bloquear": true, "motivo": "OFENSA"}'], ("OFENSA", 1)),
+        (['{"bloquear": true, "motivo": "PII"}'], ("PII", 1)),
+        (['{"bloquear": true, "motivo": null}'], ("INDETERMINADO", 1)),  # bloqueio sem motivo
+        (["lixo", '{"bloquear": true, "motivo": "PII"}'], ("PII", 2)),  # 1 nova tentativa
+        (["lixo", "lixo"], ("INDETERMINADO", 2)),  # falha segura
+    ],
+)
+def test_noul_modo_local(responses: list[str], expected: tuple) -> None:
+    assert LLMJudge(FakeChatModel(responses=responses)).noul("mensagem") == expected
