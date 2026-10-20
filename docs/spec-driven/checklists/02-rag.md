@@ -25,14 +25,14 @@
 ## T-05 — Grafo mínimo `retrieve → generate`
 **ACs:** AC-RF02-11 (parcial) · **Depende de:** T-04
 
-- [ ] `llm.py` — fábrica do chat model (Ollama, `LLM_MODEL`, timeout configurável — 120 s em CPU, ADR-10)
-- [ ] `prompts.py` — prompt de geração: "responda **somente** com base no contexto; se não houver, diga que não sabe"; sem expor instruções internas
-- [ ] `graph.py` — nós `retrieve` e `generate`, `StateGraph(GraphState)` (+ latência por nó em `timings_ms`)
-- [ ] `generate` usa contexto + últimas 6 mensagens do histórico
-- [ ] `sources` preenchido a partir dos chunks (`source`, `section`, `snippet`)
-- [ ] `/chat` passa a invocar o grafo real (`create_app(deps)` permite injetar fakes nos testes)
-- [ ] Verificar com LLM/retriever falsos: rota, resposta, `sources` e montagem do prompt (`tests/integration/test_graph_rag.py`)
-- [ ] Verificar com Ollama real: "Preciso de jejum para exame de glicemia?" → "jejum de 8 a 12 horas", fonte `exames.md`
+- [x] `llm.py` — fábrica do chat model (Ollama, `LLM_MODEL`, timeout configurável — 120 s em CPU, ADR-10)
+- [x] `prompts.py` — prompt de geração: "responda **somente** com base no contexto; se não houver, diga que não sabe"; sem expor instruções internas
+- [x] `graph.py` — nós `retrieve` e `generate`, `StateGraph(GraphState)` (+ latência por nó em `timings_ms`)
+- [x] `generate` usa contexto + últimas 6 mensagens do histórico
+- [x] `sources` preenchido a partir dos chunks (`source`, `section`, `snippet`)
+- [x] `/chat` passa a invocar o grafo real (`create_app(deps)` permite injetar fakes nos testes)
+- [x] Verificar com LLM/retriever falsos: rota, resposta, `sources` e montagem do prompt (`tests/integration/test_graph_rag.py`)
+- [x] Verificar com Ollama real: "Preciso de jejum para exame de glicemia?" → "jejum de 8 a 12 horas", fonte `exames.md` (51 s); "Qual o horário da vacina da gripe?" → "segunda a sexta, das 8h às 16h, e aos sábados das 8h às 12h", fonte `vacinas.md` (38 s)
 
 ## T-06 — Score + `fallback`
 **ACs:** AC-RF02-11, AC-RF02-12 · **Depende de:** T-05

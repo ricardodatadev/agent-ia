@@ -3,12 +3,18 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.graph import GraphDeps
 from app.main import create_app
+from tests.fakes import FakeChatModel, FakeRetriever, chunk
 
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app())
+    deps = GraphDeps(
+        retriever=FakeRetriever([chunk("A UBS funciona das 7h às 19h.", source="funcionamento.md", section="Horário")]),
+        chat_model=FakeChatModel(responses=["A UBS funciona das 7h às 19h."] * 10),
+    )
+    return TestClient(create_app(deps=deps))
 
 
 def test_chat_retorna_contrato_valido(client: TestClient) -> None:
@@ -18,6 +24,16 @@ def test_chat_retorna_contrato_valido(client: TestClient) -> None:
     assert set(body) == {
         "request_id", "reply", "route", "guardrail", "tool_call", "score", "fallback", "sources",
     }
+    assert body["route"] == "CONSULTA_RAG"
+    assert body["reply"] == "A UBS funciona das 7h às 19h."
+    assert body["sources"] == [
+        {"source": "funcionamento.md", "section": "Horário", "snippet": "A UBS funciona das 7h às 19h."}
+    ]
+
+
+def test_request_id_unico_por_requisicao(client: TestClient) -> None:
+    ids = {client.post("/chat", json={"message": "oi"}).json()["request_id"] for _ in range(2)}
+    assert len(ids) == 2
 
 
 @pytest.mark.parametrize("message", ["", "x" * 1001])

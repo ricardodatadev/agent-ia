@@ -425,7 +425,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-02 | `docker-compose.yml` com `qdrant` + `ollama` (healthchecks, volumes, pull de modelos) e `.env.example` | AC-RF05-2 | T-01 | ☑ |
 | T-03 | Documentos de exemplo em `data/` | — | — | ☑ |
 | T-04 | `rag.py` (chunking, embeddings, upsert idempotente, busca) + `scripts/ingest.py` | AC-RF01-1..4 | T-02, T-03 | ☑ |
-| T-05 | `llm.py` + `prompts.py` + grafo mínimo: `retrieve → generate` exposto em `/chat` | AC-RF02-11 (parcial) | T-04 | ☐ |
+| T-05 | `llm.py` + `prompts.py` + grafo mínimo: `retrieve → generate` exposto em `/chat` | AC-RF02-11 (parcial) | T-04 | ☑ |
 | T-06 | Score + nó `fallback` | AC-RF02-11..12 | T-05 | ☐ |
 | T-07 | Choice + roteamento + `resposta_fora_nicho` | AC-RF02-6..9 | T-05 | ☐ |
 | T-08 | Noul (regex + LLM) + `resposta_bloqueio` + log sem conteúdo de PII | AC-RF02-1..5 | T-07 | ☐ |

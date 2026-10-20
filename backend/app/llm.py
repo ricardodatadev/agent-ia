@@ -1,9 +1,24 @@
-"""Fábricas de modelos: embeddings (sempre locais, Ollama)."""
+"""Fábricas de modelos: chat de geração e embeddings (sempre locais, Ollama)."""
 
 from langchain_core.embeddings import Embeddings
-from langchain_ollama import OllamaEmbeddings
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import BaseMessage
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from app.config import Settings
+
+GENERATE_MAX_TOKENS = 400
+
+
+def make_chat_model(settings: Settings) -> BaseChatModel:
+    """Modelo de geração de respostas (RAG) e de extração de argumentos das tools."""
+    return ChatOllama(
+        model=settings.llm_model,
+        base_url=settings.ollama_base_url,
+        temperature=0.1,
+        num_predict=GENERATE_MAX_TOKENS,
+        client_kwargs={"timeout": settings.llm_timeout_s},
+    )
 
 
 def make_embeddings(settings: Settings) -> Embeddings:
@@ -12,3 +27,8 @@ def make_embeddings(settings: Settings) -> Embeddings:
         base_url=settings.ollama_base_url,
         client_kwargs={"timeout": settings.llm_timeout_s},
     )
+
+
+def message_text(message: BaseMessage) -> str:
+    """Texto da resposta, ignorando blocos que não são texto (ex.: thinking das APIs)."""
+    return str(message.text).strip()

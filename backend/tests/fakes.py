@@ -1,11 +1,19 @@
-"""Dublês de teste: embeddings determinísticos, sem Ollama."""
+"""Dublês de teste: embeddings, LLM e retriever determinísticos, sem Ollama/Qdrant."""
 
 import hashlib
 import math
 import re
 import unicodedata
+from collections.abc import Callable
+from typing import Any
 
 from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from pydantic import Field
+
+from app.models import RetrievedChunk
 
 
 def _normalize(text: str) -> str:
@@ -28,3 +36,41 @@ class FakeEmbeddings(Embeddings):
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self.embed_query(t) for t in texts]
+
+
+Responder = Callable[[list[BaseMessage]], str | AIMessage]
+
+
+class FakeChatModel(BaseChatModel):
+    """LLM roteirizado: devolve as respostas na ordem (ou via função) e grava cada chamada."""
+
+    responses: list[str | AIMessage | Responder] = Field(default_factory=list)
+    calls: list[list[BaseMessage]] = Field(default_factory=list)
+
+    @property
+    def _llm_type(self) -> str:
+        return "fake"
+
+    def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
+        self.calls.append(messages)
+        if not self.responses:
+            raise AssertionError(f"Chamada inesperada ao LLM (#{len(self.calls)})")
+        response = self.responses.pop(0)
+        if callable(response):
+            response = response(messages)
+        message = response if isinstance(response, AIMessage) else AIMessage(content=response)
+        return ChatResult(generations=[ChatGeneration(message=message)])
+
+
+class FakeRetriever:
+    def __init__(self, chunks: list[RetrievedChunk] | None = None) -> None:
+        self.chunks = chunks or []
+        self.queries: list[str] = []
+
+    def search(self, query: str, top_k: int) -> list[RetrievedChunk]:
+        self.queries.append(query)
+        return self.chunks[:top_k]
+
+
+def chunk(text: str, source: str = "exames.md", section: str | None = "Exames", index: int = 0) -> RetrievedChunk:
+    return RetrievedChunk(source=source, section=section, chunk_index=index, text=text, similarity=0.8)
