@@ -163,3 +163,22 @@ def test_log_por_requisicao_com_metadados_e_sem_texto(client: TestClient, caplog
     assert {"noul", "choice", "retrieve", "score", "generate"} <= set(line["timings_ms"])
     assert line["total_ms"] > 0 and line["message_len"] == len(message) and line["history_len"] == 0
     assert all(message not in json.dumps(json.loads(JsonFormatter().format(r)), ensure_ascii=False) for r in caplog.records)
+
+
+def test_historico_com_pii_e_descartado_antes_dos_llms() -> None:
+    chat = FakeChatModel(responses=["ok"])
+    deps = GraphDeps(
+        retriever=FakeRetriever([chunk("A UBS funciona das 7h às 19h.", section="Horário de atendimento")]),
+        chat_model=chat,
+        judge=LLMJudge(FakeChatModel(responses=[scripted_judge(score='{"evidencia": "A UBS funciona das 7h às 19h", "score": 5}')] * 3)),
+    )
+    history = [
+        {"role": "user", "content": "meu telefone é (11) 98765-4321"},
+        {"role": "assistant", "content": "Não compartilhe dados por aqui."},
+        {"role": "user", "content": "Tem pediatra?"},
+    ]
+    resp = TestClient(create_app(deps=deps)).post("/chat", json={"message": "Qual o horário da UBS?", "history": history})
+    assert resp.status_code == 200
+    sent = " ".join(str(m.content) for m in chat.calls[0])
+    assert "98765-4321" not in sent
+    assert "Tem pediatra?" in sent and "Não compartilhe dados por aqui." in sent

@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from app.config import Settings, get_settings
 from app.errors import DependencyUnavailable
 from app.graph import GraphDeps, build_graph, to_sources
+from app.guardrails import find_pii
 from app.judge import LLMJudge
 from app.llm import LLM_ERRORS, make_chat_model, make_judge_model
 from app.models import ChatRequest, ChatResponse, GraphState
@@ -157,10 +158,12 @@ def create_app(
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse | JSONResponse:
         request_id = uuid.uuid4().hex
+        # O Noul avalia só a mensagem atual: turnos antigos com PII (regex) não seguem para os LLMs.
+        history = [t for t in req.history if not find_pii(t.content)]
         state: GraphState = {
             "request_id": request_id,
             "message": req.message,
-            "history": req.history,
+            "history": history,
             "llm_calls": 0,
             "timings_ms": {},
         }
