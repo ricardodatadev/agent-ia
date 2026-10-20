@@ -37,8 +37,8 @@ def test_urgencia_vai_para_atendimento_com_192_mesmo_com_llm_errando() -> None: 
     assert state["route"] == "ATENDIMENTO_HUMANO"
     assert state["urgent"] is True
     assert "192" in state["reply"]
-    assert len(judge_llm.calls) == 1 and retriever.queries == []  # só o Noul
-    assert state["llm_calls"] == 1
+    assert judge_llm.calls == [] and retriever.queries == []  # urgência passa à frente do Noul-LLM (ADR-07)
+    assert state["llm_calls"] == 0
 
 
 def test_atendimento_sem_urgencia_tambem_orienta_192() -> None:

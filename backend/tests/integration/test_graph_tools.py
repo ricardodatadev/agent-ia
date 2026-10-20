@@ -79,7 +79,7 @@ def test_urgencia_encaminha_sem_llm_com_192() -> None:  # AC-RF03-4, AC-RF02-8
     assert len(tc.args["motivo"]) >= 3
     assert "192" in state["reply"] and "prioridade" in state["reply"]
     assert chat.calls == []
-    assert state["llm_calls"] == 1  # só o Noul
+    assert state["llm_calls"] == 0  # urgência: nem Noul-LLM, nem Choice, nem extração
 
 
 def test_urgencia_sem_palavra_chave_marcada_pelo_llm() -> None:

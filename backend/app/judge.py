@@ -35,12 +35,14 @@ EVIDENCE_MIN_OVERLAP = 0.7
 MIN_SCORE_WITH_EVIDENCE = 3
 MAX_SCORE_WITHOUT_EVIDENCE = 2
 FAIL_SAFE_SCORE = 1
-TERM_PREFIX = 5
+TERM_PREFIX = 4  # "horas" e "horário" → "hora"
+MIN_TERM_LEN = 3  # siglas como HPV e AVC contam
 STOPWORDS = frozenset(
     "qual quais como onde quando quanto quanta quem porque preciso precisa precisam posso pode podem "
     "tenho temos fazer voces voce para pela pelo pelos sobre esta estao essa esse isso isto aqui "
     "existe existem minha meus minhas queria quero gostaria saber favor obrigado obrigada ainda "
-    "tambem entao alguma algum mais muito".split()
+    "tambem entao alguma algum mais muito que tem uma com dos das por nao sim meu seu sua foi ser ter vai "
+    "ate aos nos nas pra pro ubs".split()
 )
 
 V = TypeVar("V", bound=BaseModel)
@@ -102,22 +104,23 @@ def evidence_found(evidence: str, chunks: list[RetrievedChunk]) -> bool:
 
 
 def _content_terms(text: str) -> set[str]:
-    """Termos de conteúdo (4+ letras, fora das palavras vazias), reduzidos a um radical de 5 letras."""
-    return {w[:TERM_PREFIX] for w in words(text) if len(w) >= 4 and w not in STOPWORDS}
+    """Termos de conteúdo (3+ letras, fora das palavras vazias), reduzidos a um radical de 4 letras."""
+    return {w[:TERM_PREFIX] for w in words(text) if len(w) >= MIN_TERM_LEN and w not in STOPWORDS}
 
 
-def evidence_on_topic(question: str, evidence: str, section: str | None = None) -> bool:
-    """A citação (ou o título da seção dela) fala do que foi perguntado? Barra frases reais de outro assunto.
+def evidence_on_topic(question: str, source: RetrievedChunk) -> bool:
+    """O trecho de onde a citação saiu fala do que foi perguntado? Barra frases reais de outro assunto.
 
-    Só o último título conta: o primeiro é o nome do documento e casaria com quase qualquer pergunta.
+    Usa o texto do trecho e só o último título da seção (o primeiro é o nome do documento e casaria
+    com quase qualquer pergunta).
     """
-    title = section.split(SECTION_SEPARATOR)[-1] if section else ""
-    return bool(_content_terms(question) & _content_terms(f"{evidence} {title}"))
+    title = source.section.split(SECTION_SEPARATOR)[-1] if source.section else ""
+    return bool(_content_terms(question) & _content_terms(f"{source.text} {title}"))
 
 
 def anchored_score(verdict: ScoreVerdict, chunks: list[RetrievedChunk], question: str) -> int:
     source = evidence_source(verdict.evidencia, chunks)
-    if source and evidence_on_topic(question, verdict.evidencia, source.section):
+    if source and evidence_on_topic(question, source):
         return max(verdict.score, MIN_SCORE_WITH_EVIDENCE)
     return min(verdict.score, MAX_SCORE_WITHOUT_EVIDENCE)
 

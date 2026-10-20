@@ -79,3 +79,15 @@ def test_log_de_bloqueio_nao_contem_o_texto(caplog: pytest.LogCaptureFixture) ->
     for r in caplog.records:
         dumped = f"{r.getMessage()} {r.__dict__}"
         assert "123.456.789-09" not in dumped and message not in dumped
+
+
+@pytest.mark.parametrize(
+    ("message", "noul"),
+    [("Estou pensando em me matar", OFENSA), ("Meu filho bebeu produto de limpeza, acho que se envenenou", PII)],
+)
+def test_urgencia_nao_e_bloqueada_pelo_llm(message: str, noul: str) -> None:
+    # Casos reais da avaliação: o Noul-LLM bloqueava essas urgências (ADR-07, revisão)
+    state, judge_llm, *_ = run(message, noul=noul)
+    assert state["route"] == "ATENDIMENTO_HUMANO" and state["guardrail"] is None
+    assert "192" in state["reply"]
+    assert judge_llm.calls == []

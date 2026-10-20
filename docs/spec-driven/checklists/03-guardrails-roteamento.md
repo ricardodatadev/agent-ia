@@ -17,7 +17,7 @@
 - [x] Verificar AC-RF02-7: "quero marcar com um cardiologista" → `AGENDAMENTO` (LLM falso)
 - [x] Verificar AC-RF02-8: "estou com dor forte no peito e falta de ar" → `ATENDIMENTO_HUMANO` (determinístico, mesmo com LLM errando)
 - [x] Verificar AC-RF02-9: "qual a capital da França?" → `FORA_DO_NICHO`, sem RAG e sem tools (LLM falso)
-- [ ] Verificar acurácia do CHOICE com Llama real (T-14) — **pendente: medição formal com o dataset na T-14**. Smoke test em 20/10: 10/10 (os 4 ACs + HPV, pediatra, dor de cabeça forte, filme, follow-up "e para pediatra?" e prompt injection), 3–7 s por decisão com o modelo aquecido
+- [x] Verificar acurácia do CHOICE com Llama real (T-14): **90%** (35/39) no dataset de 50 casos. Smoke test em 20/10: 10/10 (os 4 ACs + HPV, pediatra, dor de cabeça forte, filme, follow-up "e para pediatra?" e prompt injection), 3–7 s por decisão com o modelo aquecido
 
 ## T-08 — Noul (regex + LLM)
 **ACs:** AC-RF02-1, AC-RF02-2, AC-RF02-3, AC-RF02-4, AC-RF02-5 · **Depende de:** T-07

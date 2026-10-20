@@ -69,24 +69,34 @@ def test_prompt_do_score_tem_pergunta_depois_do_contexto() -> None:
 
 
 @pytest.mark.parametrize(
-    ("question", "evidence"),
+    ("question", "text", "section"),
     [
-        ("Quais documentos preciso levar na consulta?", "Documento oficial com foto (RG, CNH ou carteira de trabalho)"),
-        ("Qual o horário da vacina da gripe?", "a vacina da gripe é aplicada de segunda a sexta"),
-        ("Tem dentista na UBS?", "Odontologia (dentista)"),
+        ("Quais documentos preciso levar na consulta?", "Documento oficial com foto (RG, CNH ou carteira de trabalho)", "Documentos necessários"),
+        ("Qual o horário da vacina da gripe?", "A vacina da gripe é aplicada de segunda a sexta", "Campanha"),
+        ("Tem dentista na UBS?", "Odontologia (dentista)", "Especialidades com atendimento na UBS"),
+        # casos reais da avaliação: a 1ª versão da regra rejeitava respostas corretas
+        ("Que horas a UBS abre?", "A UBS funciona de segunda a sexta-feira, das 7h às 19h.", "Funcionamento › Horário de atendimento"),
+        ("Quem pode tomar a vacina de HPV?", "- HPV: meninas e meninos de 9 a 14 anos, dose única.", "Vacinação › Adolescentes e adultos"),
     ],
 )
-def test_evidencia_sobre_o_assunto_da_pergunta(question: str, evidence: str) -> None:
-    assert evidence_on_topic(question, evidence)
+def test_trecho_sobre_o_assunto_da_pergunta(question: str, text: str, section: str) -> None:
+    assert evidence_on_topic(question, chunk(text, section=section))
 
 
 def test_frase_real_de_outro_assunto_nao_conta_como_evidencia() -> None:
     # Caso real (Llama 3.2): citou uma frase existente, mas sem relação com a pergunta, e deu nota 4.
     question = "A UBS aceita plano de saúde particular?"
     evidence = "Especialidades não oferecidas na UBS são acessadas por encaminhamento para a rede especializada."
-    assert evidence_found(evidence, CHUNKS)
-    assert not evidence_on_topic(question, evidence)
-    assert anchored_score(ScoreVerdict(evidencia=evidence, score=4), CHUNKS, question) == 2
+    chunks = [chunk(evidence, section="Especialidades e Encaminhamentos › Especialidades fora da UBS")]
+    assert evidence_found(evidence, chunks)
+    assert not evidence_on_topic(question, chunks[0])
+    assert anchored_score(ScoreVerdict(evidencia=evidence, score=4), chunks, question) == 2
+
+
+def test_citacao_sem_a_sigla_vale_pelo_trecho() -> None:
+    chunks = [chunk("- HPV: meninas e meninos de 9 a 14 anos, dose única.", section="Vacinação › Adolescentes e adultos")]
+    verdict = ScoreVerdict(evidencia="meninas e meninos de 9 a 14 anos, dose única.", score=5)
+    assert anchored_score(verdict, chunks, "Quem pode tomar a vacina de HPV?") == 5
 
 
 def test_titulo_da_secao_conta_como_assunto_da_evidencia() -> None:

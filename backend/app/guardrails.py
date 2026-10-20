@@ -54,10 +54,16 @@ class NoulDecision:
 
 
 def check_input(message: str, judge: LLMJudge) -> NoulDecision:
-    """Regex primeiro (zero tokens); só o que ela não pega vai para o motor de decisões (ADR-01)."""
+    """Regex primeiro (zero tokens); só o que ela não pega vai para o motor de decisões (ADR-01).
+
+    Urgência sem PII não passa pela camada semântica: um bloqueio indevido aqui deixaria o paciente
+    sem orientação (ADR-07, revisão: o Noul-LLM bloqueava "se envenenou" e "me matar").
+    """
     pii_type = find_pii(message)
     if pii_type:
         return NoulDecision(GuardrailResult(motivo="PII", camada="regex"), pii_type, llm_calls=0)
+    if is_urgent(message):
+        return NoulDecision(None, None, llm_calls=0)
     motivo, calls = judge.noul(message)
     guardrail = GuardrailResult(motivo=motivo, camada="llm") if motivo else None
     return NoulDecision(guardrail, None, llm_calls=calls)
