@@ -29,7 +29,7 @@ def test_agendamento_vai_para_tool_sem_rag() -> None:  # AC-RF02-7
     state, _, chat, retriever = run("quero marcar com um cardiologista", "AGENDAMENTO")
     assert state["route"] == "AGENDAMENTO"
     assert "tool_agendamento" in state["timings_ms"]
-    assert retriever.queries == [] and chat.calls == []
+    assert retriever.queries == []
 
 
 def test_urgencia_vai_para_atendimento_com_192_mesmo_com_llm_errando() -> None:  # AC-RF02-8
@@ -58,8 +58,8 @@ def test_fora_do_nicho_resposta_fixa_sem_rag_nem_tools() -> None:  # AC-RF02-9
 
 @pytest.mark.parametrize(
     ("intencao", "max_calls"),
-    [("CONSULTA_RAG", 4), ("AGENDAMENTO", 2), ("ATENDIMENTO_HUMANO", 2), ("FORA_DO_NICHO", 2)],
+    [("CONSULTA_RAG", 4), ("AGENDAMENTO", 3), ("ATENDIMENTO_HUMANO", 3), ("FORA_DO_NICHO", 2)],
 )
-def test_chamadas_ao_llm_por_rota(intencao: str, max_calls: int) -> None:  # RNF01 (tools completas na T-09)
+def test_chamadas_ao_llm_por_rota(intencao: str, max_calls: int) -> None:  # RNF01
     state, *_ = run("mensagem qualquer sobre documentos", intencao)
     assert state["llm_calls"] == max_calls

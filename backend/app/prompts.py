@@ -134,6 +134,65 @@ BLOCK_REPLIES: dict[BlockReason, str] = {
     ),
 }
 
+# --------------------------------------------------------------------------- tools
+
+TOOL_AGENDAMENTO_SYSTEM = """Você extrai dados para agendar uma consulta na UBS.
+Chame a ferramenta agendar_consulta_especialista com a especialidade exatamente como o paciente escreveu (ex.: "cardiologista", "médico do coração", "dentista").
+Se o paciente não disse qual especialidade quer, chame a ferramenta com especialidade vazia (""). Não escolha uma especialidade por ele."""
+
+TOOL_ATENDENTE_SYSTEM = """Você encaminha pacientes da UBS para a equipe de atendimento ou enfermagem.
+Chame a ferramenta encaminhar_atendente_humano com:
+- motivo: resumo curto, em uma frase, do que o paciente precisa (sem repetir documentos ou dados pessoais);
+- urgente: true se ele relata sintoma grave ou urgência; false nos demais casos."""
+
+
+def especialidades_list(labels: list[str]) -> str:
+    return ", ".join(labels[:-1]) + f" e {labels[-1]}"
+
+
+def schedule_confirmed_reply(label: str, protocolo: str, needs_referral: bool) -> str:
+    referral = (
+        f" A primeira consulta de {label.lower()} passa antes por uma avaliação do clínico geral, "
+        "que faz o encaminhamento interno."
+        if needs_referral
+        else ""
+    )
+    return (
+        f"Pronto! Sua solicitação de consulta de {label.lower()} foi registrada com o protocolo {protocolo}."
+        f"{referral} A recepção vai entrar em contato para confirmar data e horário. "
+        "No dia, chegue 15 minutos antes com documento com foto e Cartão SUS."
+    )
+
+
+def schedule_ask_reply(labels: list[str]) -> str:
+    return f"Claro! Com qual especialidade você quer agendar? Na UBS temos: {especialidades_list(labels)}."
+
+
+def schedule_unavailable_reply(labels: list[str]) -> str:
+    return (
+        "Essa especialidade não é atendida na UBS. Podemos agendar: "
+        f"{especialidades_list(labels)}. Para outras especialidades, o médico da UBS faz o encaminhamento "
+        "para a rede especializada."
+    )
+
+
+def handoff_reply(protocolo: str, urgent: bool) -> str:
+    if urgent:
+        return (
+            f"Encaminhei seu caso com prioridade para a equipe de enfermagem da UBS (protocolo {protocolo}). "
+            f"{EMERGENCY_NOTICE}"
+        )
+    return (
+        f"Encaminhei sua solicitação para a equipe de atendimento da UBS (protocolo {protocolo}). "
+        f"Alguém vai retornar em breve. Em caso de emergência, ligue 192 (SAMU)."
+    )
+
+
+CVV_NOTICE = (
+    "Se você está pensando em tirar a própria vida, você não está sozinho: "
+    "ligue 188 (CVV), gratuito e 24 horas, ou acesse cvv.org.br."
+)
+
 EMERGENCY_NOTICE = (
     "Se for uma emergência, ligue agora para o SAMU (192) ou procure a UPA mais próxima. "
     "Não espere pela resposta do chat."

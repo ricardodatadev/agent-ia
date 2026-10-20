@@ -429,7 +429,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-06 | Score + nó `fallback` | AC-RF02-11..12 | T-05 | ☑ |
 | T-07 | Choice + roteamento + `resposta_fora_nicho` | AC-RF02-6..9 | T-05 | ☑ |
 | T-08 | Noul (regex + LLM) + `resposta_bloqueio` + log sem conteúdo de PII | AC-RF02-1..5 | T-07 | ☑ |
-| T-09 | `tools.py` (contratos + mocks) e nós `tool_agendamento`/`tool_atendente` com validação | AC-RF03-1..4, AC-RF02-8 | T-07 | ☐ |
+| T-09 | `tools.py` (contratos + mocks) e nós `tool_agendamento`/`tool_atendente` com validação | AC-RF03-1..4, AC-RF02-8 | T-07 | ☑ |
 | T-10 | Logs estruturados, contagem de chamadas LLM, timeouts e erros `503` | RNF05, RNF06 | T-08, T-09 | ☐ |
 | T-11 | Frontend: chat, histórico, badges, estados de loading/erro, aviso 192 | AC-RF04-1..4 | T-01 (contrato) | ☐ |
 | T-12 | Dockerfiles backend/frontend, serviços no compose, ingestão automática se coleção vazia | AC-RF05-1..2 | T-04, T-11 | ☐ |

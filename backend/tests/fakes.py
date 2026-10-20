@@ -46,10 +46,15 @@ class FakeChatModel(BaseChatModel):
 
     responses: list[Any] = Field(default_factory=list)  # str | AIMessage | Responder
     calls: list[list[BaseMessage]] = Field(default_factory=list)
+    bound_tools: list[list[str]] = Field(default_factory=list)  # nomes das tools vinculadas a cada bind
 
     @property
     def _llm_type(self) -> str:
         return "fake"
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> "FakeChatModel":
+        self.bound_tools.append([t["function"]["name"] for t in tools])
+        return self
 
     def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
         self.calls.append(messages)
@@ -95,3 +100,7 @@ def scripted_judge(
         return score
 
     return respond
+
+
+def tool_call(name: str, **args: Any) -> AIMessage:
+    return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "call-1"}])

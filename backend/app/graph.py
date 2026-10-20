@@ -10,18 +10,39 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from pydantic import ValidationError
 
-from app.guardrails import check_input, classify_intent, is_urgent
+from app.guardrails import check_input, classify_intent, is_urgent, mentions_suicide
 from app.judge import LLMJudge
 from app.llm import message_text
-from app.models import ChatTurn, GraphState, Intent, RetrievedChunk, Source
+from app.models import ChatTurn, GraphState, Intent, RetrievedChunk, Source, ToolCallInfo
 from app.prompts import (
     BLOCK_REPLIES,
+    CVV_NOTICE,
     EMERGENCY_NOTICE,
     FALLBACK_REPLY,
     GENERATE_SYSTEM,
     OUT_OF_SCOPE_REPLY,
+    TOOL_AGENDAMENTO_SYSTEM,
+    TOOL_ATENDENTE_SYSTEM,
     generate_user_prompt,
+    handoff_reply,
+    schedule_ask_reply,
+    schedule_confirmed_reply,
+    schedule_unavailable_reply,
+)
+from app.tools import (
+    AGENDAR_SCHEMA,
+    ATENDENTE_SCHEMA,
+    ESPECIALIDADES,
+    NEEDS_REFERRAL,
+    TOOL_AGENDAR,
+    TOOL_ATENDENTE,
+    AgendarConsultaArgs,
+    EncaminharAtendenteArgs,
+    agendar_consulta_especialista,
+    encaminhar_atendente_humano,
+    resolve_especialidade,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,6 +90,16 @@ def history_messages(history: list[ChatTurn]) -> list[BaseMessage]:
     return [HumanMessage(t.content) if t.role == "user" else AIMessage(t.content) for t in history]
 
 
+def extract_tool_args(model: BaseChatModel, schema: dict[str, Any], system: str, message: str) -> dict[str, Any] | None:
+    """Vincula UMA tool ao LLM (permissão mínima, ADR-04) e devolve os args da chamada com o nome esperado."""
+    name = schema["function"]["name"]
+    response = model.bind_tools([schema]).invoke([SystemMessage(system), HumanMessage(message)])
+    for call in getattr(response, "tool_calls", None) or []:
+        if call.get("name") == name:  # tool calls com outro nome são ignoradas
+            return call.get("args") or {}
+    return None
+
+
 def to_sources(chunks: list[RetrievedChunk]) -> list[Source]:
     return [
         Source(source=c.source, section=c.section, snippet=c.text[:SNIPPET_CHARS].rstrip())
@@ -112,13 +143,44 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
     def resposta_fora_nicho(state: GraphState) -> dict[str, Any]:
         return {"reply": OUT_OF_SCOPE_REPLY}
 
-    # -- tools (stubs até a T-09)
+    # -- tools (respostas por template, sem geração adicional)
 
     def tool_agendamento(state: GraphState) -> dict[str, Any]:
-        return {"reply": "Posso ajudar a agendar sua consulta. Qual especialidade você procura?"}
+        message = state["message"]
+        args = extract_tool_args(deps.chat_model, AGENDAR_SCHEMA, TOOL_AGENDAMENTO_SYSTEM, message)
+        extracted = str((args or {}).get("especialidade") or "")
+        status, especialidade = resolve_especialidade(extracted, message)
+        labels = list(ESPECIALIDADES.values())
+        update: dict[str, Any] = {"llm_calls": calls(state, 1), "tool_call": None}
+        if status != "ok" or especialidade is None:  # não executa a tool: pede esclarecimento
+            reply = schedule_ask_reply(labels) if status == "ausente" else schedule_unavailable_reply(labels)
+            return {**update, "reply": reply}
+
+        valid = AgendarConsultaArgs(especialidade=especialidade)  # validação antes da execução
+        result = agendar_consulta_especialista(valid)
+        reply = schedule_confirmed_reply(ESPECIALIDADES[especialidade], result.protocolo, especialidade in NEEDS_REFERRAL)
+        tool_call = ToolCallInfo(name=TOOL_AGENDAR, args=valid.model_dump(), result=result)
+        return {**update, "reply": reply, "tool_call": tool_call}
 
     def tool_atendente(state: GraphState) -> dict[str, Any]:
-        return {"reply": f"Vou encaminhar você para a equipe de atendimento da UBS. {EMERGENCY_NOTICE}"}
+        message = state["message"]
+        fallback_motivo = f"Solicitação do paciente: {message}"[:200]
+        if state.get("urgent"):  # urgência conhecida: encaminha sem chamar o LLM (ADR-07)
+            valid = EncaminharAtendenteArgs(motivo=f"Urgência relatada: {message}"[:200], urgente=True)
+            n = 0
+        else:
+            args = extract_tool_args(deps.chat_model, ATENDENTE_SCHEMA, TOOL_ATENDENTE_SYSTEM, message) or {}
+            n = 1
+            try:
+                valid = EncaminharAtendenteArgs(**args)
+            except (ValidationError, TypeError):  # motivo inválido não impede o encaminhamento
+                valid = EncaminharAtendenteArgs(motivo=fallback_motivo, urgente=bool(args.get("urgente") is True))
+        result = encaminhar_atendente_humano(valid)
+        reply = handoff_reply(result.protocolo, valid.urgente)
+        if mentions_suicide(message):
+            reply = f"{reply} {CVV_NOTICE}"
+        tool_call = ToolCallInfo(name=TOOL_ATENDENTE, args=valid.model_dump(), result=result)
+        return {"reply": reply, "tool_call": tool_call, "llm_calls": calls(state, n)}
 
     # -- RAG
 
