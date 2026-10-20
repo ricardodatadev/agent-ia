@@ -38,12 +38,12 @@
 
 > Conteúdo **fictício**. Nenhum dado real de paciente.
 
-- [ ] `data/funcionamento.md` — horários, endereço e telefone fictícios, documentos necessários para consulta
-- [ ] `data/vacinas.md` — calendário de vacinação, campanhas (ex.: influenza)
-- [ ] `data/exames.md` — exames disponíveis e preparo (jejum, coleta de urina etc.)
-- [ ] `data/especialidades.md` — especialidades (mesma lista de `tools.py`) e fluxo de encaminhamento
-- [ ] Usar títulos Markdown (`#`, `##`) — alimentam o campo `section` do payload
-- [ ] Anotar 2–3 perguntas **não cobertas** pelos documentos para usar em AC-RF02-12:
+- [x] `data/funcionamento.md` — horários, endereço e telefone fictícios, documentos necessários para consulta
+- [x] `data/vacinas.md` — calendário de vacinação, campanhas (ex.: influenza)
+- [x] `data/exames.md` — exames disponíveis e preparo (jejum, coleta de urina etc.)
+- [x] `data/especialidades.md` — especialidades (mesma lista de `tools.py`) e fluxo de encaminhamento
+- [x] Usar títulos Markdown (`#`, `##`) — alimentam o campo `section` do payload
+- [x] Anotar 2–3 perguntas **não cobertas** pelos documentos para usar em AC-RF02-12:
   - "A UBS tem estacionamento?"
   - "A UBS aceita plano de saúde particular?"
   - "Qual o nome do diretor da UBS?"
