@@ -1,5 +1,7 @@
 # Assistente UBS · Agente de IA
 
+[![CI](https://github.com/ricardodatadev/agente-ia/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardodatadev/agente-ia/actions/workflows/ci.yml)
+
 Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **responde dúvidas com RAG**, **bloqueia mensagens ofensivas e dados pessoais antes de qualquer busca ou geração (LGPD)** e **agenda consultas ou encaminha para a equipe via tool calling** — tudo rodando **localmente**, com LLM no Ollama, com um único `docker compose up`.
 
 > ⚠️ Projeto de demonstração/portfólio. Os documentos da UBS são **fictícios** e o assistente **não substitui atendimento médico** — em emergência, ligue 192.
@@ -18,7 +20,7 @@ Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **r
 - **Score ancorado em evidência:** o LLM precisa citar a frase do documento; o código confere se a citação existe e se trata do assunto perguntado.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
-- **Avaliação com LLM real** em 50 casos rotulados, **179 testes** automatizados sem Docker e testes de integração contra a stack real.
+- **Avaliação com LLM real** em 50 casos rotulados, **199 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
 
 ## Arquitetura
 
@@ -122,12 +124,21 @@ docker compose run --rm backend python scripts/ingest.py
 
 É idempotente: cada arquivo tem IDs determinísticos e seus chunks antigos são substituídos.
 
+### Problemas comuns
+
+| Sintoma | Causa e solução |
+| :--- | :--- |
+| Respostas estouram o tempo depois de trocar `LLM_MODEL` | Os modelos ficam sempre em memória (`OLLAMA_KEEP_ALIVE=-1`); o anterior continua ocupando RAM. Rode `docker compose restart ollama`. |
+| `/health` com `"qdrant": "erro"` ou `"ollama": "erro"` | Serviço ainda subindo ou sem memória no Docker. Veja `docker compose logs ollama` e aumente a RAM do Docker Desktop. |
+| Backend não sobe com `LLM_PROVIDER=anthropic` ou `google` | Falta a chave da API no `.env`; a mensagem de erro cita a variável. |
+| Porta 11434 em uso | Já existe um Ollama rodando fora do Docker: pare-o antes do `docker compose up`. |
+
 ## Testes e avaliação
 
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest                      # 179 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
+pytest                      # 199 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
 pytest -m integration       # contra a stack real: Qdrant + bge-m3 + API no ar
 python tests/eval/run_eval.py   # avaliação com o LLM real nos 50 casos de tests/eval/dataset.jsonl
 ```

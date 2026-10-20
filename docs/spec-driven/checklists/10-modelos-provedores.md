@@ -33,13 +33,13 @@
 ## T-18 — Ajustes para portfólio (pós-comparação)
 **ACs:** padrão atinge todas as metas da SPEC; CI verde · **Depende de:** T-17
 
-- [ ] Padrão volta para `llama3.2:3b` (ADR-12 revisado); Qwen 3B/1.5B como opções comentadas no `.env.example`
-- [ ] README e SPEC atualizados (tabela de opções, comparação com o Llama como padrão, decisão e viés da avaliação)
-- [ ] CI no GitHub Actions (`.github/workflows/ci.yml`): pytest (Python 3.12) + typecheck/build do frontend (Node 22); selo no README
-- [ ] CI simulado localmente em containers limpos (`python:3.12-slim` e `node:22-alpine`, sem `.venv`/`.env`): **167 passed** e build ok
-- [ ] `docs/especifica_o_de_requisitos.md` → `docs/especificacao_de_requisitos.md` (`git mv`; link na SPEC atualizado)
-- [ ] Screenshot do README refeito com `llama3.2:3b`
-- [ ] **Achado:** com `OLLAMA_KEEP_ALIVE=-1`, trocar de modelo mantém o anterior em memória (5,7 GB de 7,2 GB com Llama + Qwen + bge-m3) e as respostas estouram o timeout → documentado no README (`docker compose restart ollama`)
+- [x] `llama3.2:3b` como padrão (na reconstrução, nunca deixou de ser — T-17); Qwen 3B/1.5B como opções comentadas no `.env.example`
+- [x] README e SPEC atualizados (tabela de opções na seção "Modelos e provedores", ADR-12 com decisão e viés)
+- [x] CI no GitHub Actions (`.github/workflows/ci.yml`): pytest (Python 3.12) + typecheck/build do frontend (Node 22), com cache de pip/npm e cancelamento de execuções antigas; selo no README
+- [x] CI simulado localmente em containers limpos (`python:3.12-slim` e `node:22-alpine`, a partir de `git archive HEAD` — sem `.venv`/`.env`): **199 passed** em 15 s e build ok
+- [x] `docs/especificacao_de_requisitos.md` com o nome correto (na reconstrução já veio assim; link da SPEC ok)
+- [x] Screenshot do README com `llama3.2:3b` (gerado na T-12, Edge headless contra a stack real)
+- [x] **Achado:** com `OLLAMA_KEEP_ALIVE=-1`, trocar de modelo mantém o anterior em memória (5,7 GB de 7,2 GB com Llama + Qwen + bge-m3, medido na construção anterior) e as respostas estouram o timeout → documentado no README, seção "Problemas comuns" (`docker compose restart ollama`)
 - [ ] GIF/vídeo curto da demo no topo do README — **com o usuário**
 - [ ] Repositório público, descrição e tópicos no GitHub — **com o usuário**
 - [ ] Confirmar o primeiro run do CI verde no GitHub após o push — **com o usuário**
