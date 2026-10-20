@@ -4,6 +4,7 @@ import json
 import logging
 import time
 
+import anthropic
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +14,7 @@ from app.config import Settings
 from app.errors import DependencyUnavailable
 from app.graph import GraphDeps
 from app.judge import LLMJudge
-from app.main import UNAVAILABLE_DETAIL, JsonFormatter, create_app
+from app.main import CONFIG_ERROR_DETAIL, UNAVAILABLE_DETAIL, JsonFormatter, create_app
 from tests.fakes import FakeChatModel, FakeRetriever, chunk, scripted_judge
 
 
@@ -205,3 +206,27 @@ def test_aquecimento_com_ollama_fora_nao_impede_a_subida(caplog: pytest.LogCaptu
     with caplog.at_level(logging.INFO), TestClient(create_app(settings=settings)) as client:
         assert client.get("/openapi.json").status_code == 200
     assert any(r.getMessage() == "startup_warmup_failed" for r in caplog.records)
+
+
+class AuthFailingModel(FakeChatModel):
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):  # type: ignore[no-untyped-def]
+        raise anthropic.AuthenticationError("chave inválida", response=httpx.Response(401, request=httpx.Request("POST", "https://x")), body=None)
+
+
+class RateLimitedModel(FakeChatModel):
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):  # type: ignore[no-untyped-def]
+        raise anthropic.RateLimitError("limite", response=httpx.Response(429, request=httpx.Request("POST", "https://x")), body=None)
+
+
+def test_chave_invalida_da_api_retorna_500_de_configuracao(caplog: pytest.LogCaptureFixture) -> None:
+    deps = GraphDeps(retriever=FakeRetriever(), chat_model=FakeChatModel(), judge=LLMJudge(AuthFailingModel()))
+    with caplog.at_level(logging.ERROR):
+        resp = TestClient(create_app(deps=deps)).post("/chat", json={"message": "qual o horário?"})
+    assert resp.status_code == 500 and resp.json() == {"detail": CONFIG_ERROR_DETAIL}
+    assert any(r.getMessage() == "llm_config_error" for r in caplog.records)
+
+
+def test_limite_de_uso_da_api_retorna_503() -> None:
+    deps = GraphDeps(retriever=FakeRetriever(), chat_model=FakeChatModel(), judge=LLMJudge(RateLimitedModel()))
+    resp = TestClient(create_app(deps=deps)).post("/chat", json={"message": "qual o horário?"})
+    assert resp.status_code == 503 and resp.json() == {"detail": UNAVAILABLE_DETAIL}

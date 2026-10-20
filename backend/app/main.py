@@ -18,13 +18,14 @@ from app.errors import DependencyUnavailable
 from app.graph import GraphDeps, build_graph, to_sources
 from app.guardrails import find_pii
 from app.judge import LLMJudge
-from app.llm import LLM_ERRORS, make_chat_model, make_judge_model, warm_up
+from app.llm import LLM_ERRORS, classify_llm_error, make_chat_model, make_judge_model, warm_up
 from app.models import ChatRequest, ChatResponse, GraphState, RetrievedChunk
 from app.rag import VectorStore
 
 logger = logging.getLogger("app")
 
 UNAVAILABLE_DETAIL = "Serviço temporariamente indisponível. Tente novamente em instantes."
+CONFIG_ERROR_DETAIL = "Erro de configuração do assistente. Avise o responsável pelo serviço."
 HEALTH_TIMEOUT_S = 5
 
 # --------------------------------------------------------------------------- logs
@@ -147,9 +148,10 @@ def startup_warm_up(settings: Settings, deps: GraphDeps) -> None:
     sample = RetrievedChunk(source="aquecimento", chunk_index=0, text="A UBS funciona de segunda a sexta.")
     try:
         warm_up(settings)
-        deps.judge.noul("Olá")
-        deps.judge.choice("Olá", [])
-        deps.judge.score("Olá", [sample])
+        if settings.llm_provider == "ollama":  # com API externa não há carga a frio; aquecer só gastaria tokens
+            deps.judge.noul("Olá")
+            deps.judge.choice("Olá", [])
+            deps.judge.score("Olá", [sample])
     except LLM_ERRORS as exc:  # sobe mesmo assim; a 1ª pergunta só fica mais lenta
         logger.warning("startup_warmup_failed", extra={"model": settings.llm_model, "error": type(exc).__name__})
         return
@@ -212,13 +214,19 @@ def create_app(
         start = time.perf_counter()
         try:
             final = graph.invoke(state)
-        except (DependencyUnavailable, *LLM_ERRORS) as exc:
+        except Exception as exc:
+            kind = "unavailable" if isinstance(exc, DependencyUnavailable) else classify_llm_error(exc)
+            if kind is None:
+                raise
             dependency = exc.dependency if isinstance(exc, DependencyUnavailable) else "llm"
+            event = "dependency_error" if kind == "unavailable" else "llm_config_error"
             logger.error(
-                "dependency_error",
+                event,
                 exc_info=True,
                 extra={"request_id": request_id, "dependency": dependency, "error": type(exc).__name__},
             )
+            if kind == "config":
+                return JSONResponse({"detail": CONFIG_ERROR_DETAIL}, status_code=500)
             return JSONResponse({"detail": UNAVAILABLE_DETAIL}, status_code=503)
         total_ms = round((time.perf_counter() - start) * 1000, 1)
         logger.info("chat_request", extra=request_log(final, req, total_ms))
