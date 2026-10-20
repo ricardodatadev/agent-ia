@@ -5,30 +5,30 @@
 ## T-16 — Provedor do LLM configurável (Ollama / Claude / Gemini)
 **ACs:** troca de provedor apenas pelo `.env`; padrão continua local · **Depende de:** v1
 
-- [ ] `config.py` — `LLM_PROVIDER` (`ollama` | `anthropic` | `google`), `ANTHROPIC_API_KEY`, `ANTHROPIC_EFFORT`, `GOOGLE_API_KEY` (chaves como `SecretStr`)
-- [ ] `llm.py` — fábrica por provedor:
-  - [ ] Ollama: igual à v1 (JSON + temperatura 0 nas decisões)
-  - [ ] Claude: sem `temperature` (rejeitada pelos modelos atuais), `effort` configurável via `output_config`, `max_tokens` com folga para o thinking
-  - [ ] Gemini: `response_mime_type="application/json"` nas decisões
-  - [ ] Chave ausente → erro claro citando a variável
-- [ ] Respostas lidas com `.text` (APIs devolvem blocos de thinking junto do texto)
-- [ ] Falhas de rede, rate limit e 5xx das APIs → `503`; chave inválida → `500` com log (erro de configuração)
-- [ ] Embeddings e Qdrant sempre locais (Ollama), qualquer que seja o provedor
-- [ ] `ollama-pull` baixa o LLM só com `LLM_PROVIDER=ollama`
-- [ ] `.env.example` com blocos comentados: Qwen 3B (padrão), Qwen 1.5B, Llama 3B/8B, Claude, Gemini — com aviso de LGPD
-- [ ] Testes unitários sem rede (`tests/unit/test_llm.py`): seleção de provedor, payload do Claude, JSON do Gemini, erro sem chave, mapeamento de erros
+- [x] `config.py` — `LLM_PROVIDER` (`ollama` | `anthropic` | `google`), `ANTHROPIC_API_KEY`, `ANTHROPIC_EFFORT`, `GOOGLE_API_KEY` (chaves como `SecretStr`)
+- [x] `llm.py` — fábrica por provedor:
+  - [x] Ollama: igual à v1 (JSON + temperatura 0 nas decisões)
+  - [x] Claude: sem `temperature` (rejeitada pelos modelos atuais), `effort` configurável via `output_config`, `max_tokens` com folga para o thinking
+  - [x] Gemini: `response_mime_type="application/json"` nas decisões
+  - [x] Chave ausente → erro claro citando a variável
+- [x] Respostas lidas com `.text` (APIs devolvem blocos de thinking junto do texto)
+- [x] Falhas de rede, rate limit e 5xx das APIs → `503`; chave inválida → `500` com log (erro de configuração)
+- [x] Embeddings e Qdrant sempre locais (Ollama), qualquer que seja o provedor
+- [x] `ollama-pull` baixa o LLM só com `LLM_PROVIDER=ollama` (desde a T-02); com API, o aquecimento do startup carrega só o `bge-m3` e não gasta tokens aquecendo as decisões
+- [x] `.env.example` com blocos comentados: Llama 3B (padrão), Llama 8B, Qwen 3B/1.5B, Claude, Gemini — com aviso de LGPD (arquivo do projeto reaproveitado)
+- [x] Testes unitários sem rede (`tests/unit/test_llm.py`): seleção de provedor, payload do Claude, JSON do Gemini, erro sem chave, mapeamento de erros (+ 500/503 na API em `test_api.py`) — **199 passed**
+- [x] **Extra:** fail-fast verificado no container: `LLM_PROVIDER=anthropic` sem chave → `LLMConfigError: LLM_PROVIDER=anthropic exige ANTHROPIC_API_KEY no .env`; padrão Ollama reconstruído e verificado (agendamento e bloqueio)
 - [ ] Verificação real com Claude/Gemini — **não executada: sem chaves de API neste ambiente** (comportamento coberto por testes de construção/payload)
 
 ## T-17 — Trocar o LLM padrão para `qwen2.5:3b`
 **ACs:** metas da SPEC mantidas (AC-RF02-10..13, AC-RF03) · **Depende de:** T-16
 
-- [ ] `LLM_MODEL=qwen2.5:3b` como padrão (`config.py`, `.env.example`)
-- [ ] Baixar o modelo e subir a stack (`qwen2.5:3b`, 1,9 GB; `/health` ok)
-- [ ] Avaliação completa (50 casos) com `qwen2.5:3b` e comparação com `llama3.2:3b`:
-  - CHOICE 100% (Llama 97%) · **urgência 86% (Llama 100%) — abaixo da meta AC-RF02-10**
-  - NOUL falsos positivos 5% (Llama 0%) · RAG coberto 92% (Llama 100%) · tool 94% (Llama 100%) · RAG médio 69 s (Llama 49 s)
-- [ ] Registrar resultado e decisão (ADR-12) na SPEC — Qwen mantido como padrão por decisão do usuário; desvio documentado; precedência da urgência sobre o NOUL-LLM proposta e não adotada
-- [ ] Atualizar README (modelo padrão, comparação de modelos, tabela de opções de provedor, aviso de LGPD, limitação de urgência com o Qwen)
+> **Reconstrução (20/10):** por decisão do usuário, a comparação Llama × Qwen **não foi refeita** — a decisão já documentada no ADR-12 foi reaproveitada (Llama 3.2 3B como padrão; Qwen como opção no `.env`). Os números abaixo são os da construção anterior, registrados na SPEC.
+
+- [x] Decisão do ADR-12 reaproveitada: `llama3.2:3b` continua o padrão (`config.py`, `.env.example`); `qwen2.5:3b` e `qwen2.5:1.5b` como opções comentadas no `.env.example`
+- [x] Comparação de referência (construção anterior, 50 casos, CPU): CHOICE 100% (Llama 97%) · **urgência 86% (Llama 100%) — abaixo da meta AC-RF02-10** · NOUL falsos positivos 5% (Llama 0%) · RAG coberto 92% (Llama 100%) · tool 94% (Llama 100%) · RAG médio 69 s (Llama 49 s)
+- [x] Decisão e viés registrados na SPEC (ADR-12)
+- [x] README: modelo padrão, tabela de opções de provedor e modelo (seção "Modelos e provedores") e aviso de LGPD para provedores externos
 
 ## T-18 — Ajustes para portfólio (pós-comparação)
 **ACs:** padrão atinge todas as metas da SPEC; CI verde · **Depende de:** T-17
