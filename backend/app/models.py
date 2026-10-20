@@ -72,6 +72,7 @@ class GraphState(TypedDict, total=False):
     message: str
     history: list[ChatTurn]
     route: Route
+    urgent: bool  # termo de urgência detectado (ADR-07)
     guardrail: GuardrailResult | None
     contexts: list[RetrievedChunk]
     score: int | None

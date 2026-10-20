@@ -2,7 +2,6 @@
 
 import json
 import re
-import unicodedata
 from typing import TypeVar
 
 from langchain_core.language_models import BaseChatModel
@@ -10,9 +9,16 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, ValidationError
 
 from app.llm import message_text
-from app.models import RetrievedChunk
-from app.prompts import SCORE_SYSTEM, score_user_prompt
+from app.models import ChatTurn, Intent, RetrievedChunk
+from app.prompts import CHOICE_SYSTEM, SCORE_SYSTEM, choice_user_prompt, score_user_prompt
 from app.rag import SECTION_SEPARATOR
+from app.text import normalize, words
+
+# Choice
+DEFAULT_INTENT: Intent = "CONSULTA_RAG"  # o Score protege contra resposta sem evidência
+CHOICE_ATTEMPTS = 2  # 1 nova tentativa se a saída for inválida
+CHOICE_HISTORY_TURNS = 4
+CHOICE_HISTORY_CHARS = 300
 
 # Score ancorado em evidência (ADR-11)
 EVIDENCE_MIN_OVERLAP = 0.7
@@ -31,6 +37,10 @@ V = TypeVar("V", bound=BaseModel)
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
 
+class ChoiceVerdict(BaseModel):
+    intencao: Intent
+
+
 class ScoreVerdict(BaseModel):
     evidencia: str = ""
     score: int = Field(ge=1, le=5)
@@ -47,28 +57,29 @@ def parse_verdict(text: str, model: type[V]) -> V | None:
         return None
 
 
-def normalize(text: str) -> str:
-    """Minúsculas e sem acentos — base das comparações determinísticas."""
-    decomposed = unicodedata.normalize("NFKD", text.lower())
-    return "".join(c for c in decomposed if not unicodedata.combining(c))
+def recent_history(history: list[ChatTurn]) -> list[ChatTurn]:
+    """Últimos 4 turnos, até 300 caracteres cada — o bastante para follow-ups como "e para pediatra?"."""
+    return [
+        ChatTurn(role=t.role, content=t.content[:CHOICE_HISTORY_CHARS])
+        for t in history[-CHOICE_HISTORY_TURNS:]
+    ]
 
 
-def _words(text: str) -> list[str]:
-    return re.findall(r"\w+", normalize(text))
+# --------------------------------------------------------------------------- Score ancorado em evidência
 
 
 def _overlap(evidence_words: list[str], text: str) -> float:
-    context = set(_words(text))
+    context = set(words(text))
     return sum(w in context for w in evidence_words) / len(evidence_words)
 
 
 def evidence_source(evidence: str, chunks: list[RetrievedChunk]) -> RetrievedChunk | None:
     """Chunk de onde a citação saiu (≥ 70% das palavras presentes); None se "nenhuma" ou inexistente."""
-    words = _words(evidence)
-    if not words or not chunks or normalize(evidence).strip(" .") == "nenhuma":
+    evidence_words = words(evidence)
+    if not evidence_words or not chunks or normalize(evidence).strip(" .") == "nenhuma":
         return None
-    best = max(chunks, key=lambda c: _overlap(words, c.text))
-    return best if _overlap(words, best.text) >= EVIDENCE_MIN_OVERLAP else None
+    best = max(chunks, key=lambda c: _overlap(evidence_words, c.text))
+    return best if _overlap(evidence_words, best.text) >= EVIDENCE_MIN_OVERLAP else None
 
 
 def evidence_found(evidence: str, chunks: list[RetrievedChunk]) -> bool:
@@ -77,7 +88,7 @@ def evidence_found(evidence: str, chunks: list[RetrievedChunk]) -> bool:
 
 def _content_terms(text: str) -> set[str]:
     """Termos de conteúdo (4+ letras, fora das palavras vazias), reduzidos a um radical de 5 letras."""
-    return {w[:TERM_PREFIX] for w in _words(text) if len(w) >= 4 and w not in STOPWORDS}
+    return {w[:TERM_PREFIX] for w in words(text) if len(w) >= 4 and w not in STOPWORDS}
 
 
 def evidence_on_topic(question: str, evidence: str, section: str | None = None) -> bool:
@@ -96,6 +107,9 @@ def anchored_score(verdict: ScoreVerdict, chunks: list[RetrievedChunk], question
     return min(verdict.score, MAX_SCORE_WITHOUT_EVIDENCE)
 
 
+# --------------------------------------------------------------------------- juiz do modo local
+
+
 class LLMJudge:
     """Modo local: cada decisão devolve (resultado, nº de chamadas ao LLM)."""
 
@@ -104,6 +118,15 @@ class LLMJudge:
 
     def _ask(self, system: str, user: str) -> str:
         return message_text(self.model.invoke([SystemMessage(system), HumanMessage(user)]))
+
+    def choice(self, message: str, history: list[ChatTurn]) -> tuple[Intent, int]:
+        """Intenção da mensagem. Inválida → 1 nova tentativa; persistindo → CONSULTA_RAG."""
+        prompt = choice_user_prompt(message, recent_history(history))
+        for attempt in range(1, CHOICE_ATTEMPTS + 1):
+            verdict = parse_verdict(self._ask(CHOICE_SYSTEM, prompt), ChoiceVerdict)
+            if verdict:
+                return verdict.intencao, attempt
+        return DEFAULT_INTENT, CHOICE_ATTEMPTS
 
     def score(self, question: str, chunks: list[RetrievedChunk]) -> tuple[int, int]:
         """Relevância 1–5 do contexto. Saída inválida → 1 (falha segura)."""

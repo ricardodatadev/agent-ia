@@ -44,7 +44,7 @@ Responder = Callable[[list[BaseMessage]], str | AIMessage]
 class FakeChatModel(BaseChatModel):
     """LLM roteirizado: devolve as respostas na ordem (ou via função) e grava cada chamada."""
 
-    responses: list[str | AIMessage | Responder] = Field(default_factory=list)
+    responses: list[Any] = Field(default_factory=list)  # str | AIMessage | Responder
     calls: list[list[BaseMessage]] = Field(default_factory=list)
 
     @property
@@ -74,3 +74,15 @@ class FakeRetriever:
 
 def chunk(text: str, source: str = "exames.md", section: str | None = "Exames", index: int = 0) -> RetrievedChunk:
     return RetrievedChunk(source=source, section=section, chunk_index=index, text=text, similarity=0.8)
+
+
+def scripted_judge(intencao: str = "CONSULTA_RAG", score: str = '{"evidencia": "nenhuma", "score": 1}') -> Responder:
+    """Resposta do juiz conforme o prompt recebido (Choice ou Score) — independe da ordem das chamadas."""
+
+    def respond(messages: list[BaseMessage]) -> str:
+        system = str(messages[0].content)
+        if "classifica a intenção" in system:
+            return f'{{"intencao": "{intencao}"}}'
+        return score
+
+    return respond

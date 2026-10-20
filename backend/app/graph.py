@@ -10,12 +10,27 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from app.guardrails import classify_intent
 from app.judge import LLMJudge
 from app.llm import message_text
-from app.models import ChatTurn, GraphState, RetrievedChunk, Source
-from app.prompts import FALLBACK_REPLY, GENERATE_SYSTEM, generate_user_prompt
+from app.models import ChatTurn, GraphState, Intent, RetrievedChunk, Source
+from app.prompts import (
+    EMERGENCY_NOTICE,
+    FALLBACK_REPLY,
+    GENERATE_SYSTEM,
+    OUT_OF_SCOPE_REPLY,
+    generate_user_prompt,
+)
 
 SNIPPET_CHARS = 240
+
+# Próximo nó de cada intenção do Choice (SPEC RF02.2)
+INTENT_NODES: dict[Intent, str] = {
+    "CONSULTA_RAG": "retrieve",
+    "AGENDAMENTO": "tool_agendamento",
+    "ATENDIMENTO_HUMANO": "tool_atendente",
+    "FORA_DO_NICHO": "resposta_fora_nicho",
+}
 
 
 class Retriever(Protocol):
@@ -58,12 +73,34 @@ def to_sources(chunks: list[RetrievedChunk]) -> list[Source]:
 
 
 def build_graph(deps: GraphDeps) -> CompiledStateGraph:
+    def calls(state: GraphState, n: int) -> int:
+        return state.get("llm_calls", 0) + n
+
+    # -- triagem
+
+    def choice(state: GraphState) -> dict[str, Any]:
+        decision = classify_intent(state["message"], state.get("history", []), deps.judge)
+        return {"route": decision.intent, "urgent": decision.urgent, "llm_calls": calls(state, decision.llm_calls)}
+
+    def resposta_fora_nicho(state: GraphState) -> dict[str, Any]:
+        return {"reply": OUT_OF_SCOPE_REPLY}
+
+    # -- tools (stubs até a T-09)
+
+    def tool_agendamento(state: GraphState) -> dict[str, Any]:
+        return {"reply": "Posso ajudar a agendar sua consulta. Qual especialidade você procura?"}
+
+    def tool_atendente(state: GraphState) -> dict[str, Any]:
+        return {"reply": f"Vou encaminhar você para a equipe de atendimento da UBS. {EMERGENCY_NOTICE}"}
+
+    # -- RAG
+
     def retrieve(state: GraphState) -> dict[str, Any]:
-        return {"route": "CONSULTA_RAG", "contexts": deps.retriever.search(state["message"], deps.top_k)}
+        return {"contexts": deps.retriever.search(state["message"], deps.top_k)}
 
     def score(state: GraphState) -> dict[str, Any]:
-        value, calls = deps.judge.score(state["message"], state["contexts"])
-        return {"score": value, "llm_calls": state.get("llm_calls", 0) + calls}
+        value, n = deps.judge.score(state["message"], state["contexts"])
+        return {"score": value, "llm_calls": calls(state, n)}
 
     def fallback(state: GraphState) -> dict[str, Any]:
         return {"reply": FALLBACK_REPLY, "fallback": True}
@@ -75,7 +112,12 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
             HumanMessage(generate_user_prompt(state["message"], state["contexts"])),
         ]
         reply = message_text(deps.chat_model.invoke(messages))
-        return {"reply": reply, "fallback": False, "llm_calls": state.get("llm_calls", 0) + 1}
+        return {"reply": reply, "fallback": False, "llm_calls": calls(state, 1)}
+
+    # -- arestas condicionais
+
+    def after_choice(state: GraphState) -> str:
+        return INTENT_NODES[state["route"]]
 
     def after_retrieve(state: GraphState) -> str:
         return "score" if state["contexts"] else "fallback"  # sem chunks: nem chama o Score
@@ -83,12 +125,24 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
     def after_score(state: GraphState) -> str:
         return "generate" if (state.get("score") or 0) >= deps.score_threshold else "fallback"
 
+    nodes: dict[str, Node] = {
+        "choice": choice,
+        "resposta_fora_nicho": resposta_fora_nicho,
+        "tool_agendamento": tool_agendamento,
+        "tool_atendente": tool_atendente,
+        "retrieve": retrieve,
+        "score": score,
+        "generate": generate,
+        "fallback": fallback,
+    }
     graph = StateGraph(GraphState)
-    for name, node in {"retrieve": retrieve, "score": score, "generate": generate, "fallback": fallback}.items():
+    for name, node in nodes.items():
         graph.add_node(name, timed(name, node))
-    graph.add_edge(START, "retrieve")
+
+    graph.add_edge(START, "choice")
+    graph.add_conditional_edges("choice", after_choice, list(INTENT_NODES.values()))
     graph.add_conditional_edges("retrieve", after_retrieve, ["score", "fallback"])
     graph.add_conditional_edges("score", after_score, ["generate", "fallback"])
-    graph.add_edge("generate", END)
-    graph.add_edge("fallback", END)
+    for terminal in ("resposta_fora_nicho", "tool_agendamento", "tool_atendente", "generate", "fallback"):
+        graph.add_edge(terminal, END)
     return graph.compile()
