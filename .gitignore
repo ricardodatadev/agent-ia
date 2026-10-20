@@ -1,0 +1,31 @@
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Avaliação (resultados gerados localmente)
+backend/tests/eval/results/
+
+# Frontend
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Arquivos locais do autor
+docs/persona.md.txt
+*.zip
