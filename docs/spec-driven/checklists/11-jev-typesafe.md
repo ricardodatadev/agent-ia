@@ -9,25 +9,27 @@
 ## T-21 — Especificação atualizada
 **ACs:** — · **Depende de:** v1
 
-- [ ] `docs/especificacao_de_requisitos.md`: Jev como motor das decisões, boas práticas de implementação (seção 6), configuração do `.env` (seção 7) e RF06
-- [ ] `SPEC.md`: glossário (Jev, Noul, Choice, Score, state do Jev, modo local), RF02 com os dois motores, **RF06** com AC-RF06-1..7, RNF07, estrutura e **ADR-14**
-- [ ] Termo antigo removido da SPEC, do documento de requisitos e dos checklists
-- [ ] Correção: RF02.3 passa a citar o limite real de sobreposição da evidência (70%, ADR-11)
-- [ ] SPEC pronta para reconstrução do zero:
-  - [ ] RF05 com a lista completa de variáveis do `.env` (LLM, motor de decisões, busca, interface)
-  - [ ] RF04 com o modo demonstração (`SHOW_DEBUG`) e AC-RF04-5; RNF09 com o CI
-  - [ ] Matriz de rastreabilidade com o RF06
-  - [ ] Apêndice A — artefatos de referência (prompts, textos fixos, perguntas do Jev, regex, termos de urgência, especialidades, constantes, documentos, dataset), números de referência e regras para reconstruir
-  - [ ] Apêndice B — versões fixadas (runtimes, imagens, modelos, pacotes do backend e do frontend, CI)
+> **Reconstrução (20/10):** a SPEC e o documento de requisitos já vieram atualizados; itens conferidos (RF06 e AC-RF06-1..7, ADR-14, glossário, RNF09, AC-RF04-5, Apêndices A–C; requisitos com Jev, RF06, seção 6 e seção 7). Os prompts do Apêndice A foram reescritos nesta reconstrução — por isso a avaliação foi refeita (T-14), como manda a regra 1 do apêndice.
+
+- [x] `docs/especificacao_de_requisitos.md`: Jev como motor das decisões, boas práticas de implementação (seção 6), configuração do `.env` (seção 7) e RF06
+- [x] `SPEC.md`: glossário (Jev, Noul, Choice, Score, state do Jev, modo local), RF02 com os dois motores, **RF06** com AC-RF06-1..7, RNF07, estrutura e **ADR-14**
+- [x] Termo antigo removido da SPEC, do documento de requisitos e dos checklists
+- [x] Correção: RF02.3 passa a citar o limite real de sobreposição da evidência (70%, ADR-11)
+- [x] SPEC pronta para reconstrução do zero:
+  - [x] RF05 com a lista completa de variáveis do `.env` (LLM, motor de decisões, busca, interface)
+  - [x] RF04 com o modo demonstração (`SHOW_DEBUG`) e AC-RF04-5; RNF09 com o CI
+  - [x] Matriz de rastreabilidade com o RF06
+  - [x] Apêndice A — artefatos de referência (prompts, textos fixos, perguntas do Jev, regex, termos de urgência, especialidades, constantes, documentos, dataset), números de referência e regras para reconstruir
+  - [x] Apêndice B — versões fixadas (runtimes, imagens, modelos, pacotes do backend e do frontend, CI)
 
 ## T-22 — Interface de decisões e modo local
 **ACs:** AC-RF02-1..13 continuam válidos · **Depende de:** T-21
 
-- [ ] `judge.py`: `Judge` (Protocol) com `noul`, `choice` e `score`, cada um devolvendo (decisão, nº de chamadas)
-- [ ] `LLMJudge` (modo local): mesma lógica da v1 (prompts, retries, falha segura, Score ancorado em evidência)
-- [ ] `guardrails.py`: apenas camadas determinísticas (regex de PII, termos de urgência) + orquestração que delega ao juiz
-- [ ] `graph.py`: `GraphDeps.judge` — o grafo não conhece o provedor
-- [ ] Comportamento preservado: os 167 testes da v1 passaram sem mudar expectativas
+- [x] `judge.py`: `Judge` (Protocol) com `noul`, `choice` e `score`, cada um devolvendo (decisão, nº de chamadas)
+- [x] `LLMJudge` (modo local): mesma lógica da v1 (prompts, retries, falha segura, Score ancorado em evidência) — na reconstrução já nasceu em `judge.py` (T-06 a T-08)
+- [x] `guardrails.py`: apenas camadas determinísticas (regex de PII, termos de urgência) + orquestração que delega ao juiz
+- [x] `graph.py`: `GraphDeps.judge` — o grafo não conhece o provedor
+- [x] Comportamento preservado: os 199 testes passaram sem mudar expectativas (+1 teste: `LLMJudge` implementa `Judge`, `runtime_checkable`)
 
 ## T-23 — Integração com o Jev via SDK oficial
 **ACs:** AC-RF06-3..6 · **Depende de:** T-22

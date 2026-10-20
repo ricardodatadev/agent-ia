@@ -13,7 +13,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
 from app.guardrails import check_input, classify_intent, is_urgent, mentions_suicide
-from app.judge import LLMJudge
+from app.judge import Judge
 from app.llm import message_text
 from app.models import ChatTurn, GraphState, Intent, RetrievedChunk, Source, ToolCallInfo
 from app.prompts import (
@@ -66,7 +66,7 @@ class Retriever(Protocol):
 class GraphDeps:
     retriever: Retriever
     chat_model: BaseChatModel
-    judge: LLMJudge
+    judge: Judge
     top_k: int = 3
     score_threshold: int = 3
 

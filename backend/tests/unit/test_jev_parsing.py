@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.judge import LLMJudge, ScoreVerdict, anchored_score, evidence_found, evidence_on_topic, parse_verdict
+from app.judge import Judge, LLMJudge, ScoreVerdict, anchored_score, evidence_found, evidence_on_topic, parse_verdict
 from tests.fakes import FakeChatModel, chunk
 
 CHUNKS = [
@@ -125,3 +125,7 @@ def test_titulo_do_documento_nao_conta_como_assunto() -> None:
 )
 def test_noul_modo_local(responses: list[str], expected: tuple) -> None:
     assert LLMJudge(FakeChatModel(responses=responses)).noul("mensagem") == expected
+
+
+def test_modo_local_implementa_a_interface_judge() -> None:
+    assert isinstance(LLMJudge(FakeChatModel()), Judge)

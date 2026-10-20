@@ -1,8 +1,12 @@
-"""Decisões tomadas pelo LLM local (modo local): saída JSON curta, validada por Pydantic (SPEC RF02)."""
+"""Motor de decisões (SPEC RF02, RF06): interface `Judge` e o modo local `LLMJudge`.
+
+O modo local responde em JSON curto, validado por Pydantic. O Jev da TypeSafe AI implementa a mesma
+interface em `jev.py`; o grafo só conhece `Judge`.
+"""
 
 import json
 import re
-from typing import Literal, TypeVar
+from typing import Literal, Protocol, TypeVar, runtime_checkable
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -47,6 +51,17 @@ STOPWORDS = frozenset(
 
 V = TypeVar("V", bound=BaseModel)
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+
+
+@runtime_checkable
+class Judge(Protocol):
+    """Decisões Noul, Choice e Score; cada uma devolve (decisão, nº de chamadas ao motor)."""
+
+    def noul(self, message: str) -> tuple[BlockReason | None, int]: ...
+
+    def choice(self, message: str, history: list[ChatTurn]) -> tuple[Intent, int]: ...
+
+    def score(self, question: str, chunks: list[RetrievedChunk]) -> tuple[int, int]: ...
 
 
 class NoulVerdict(BaseModel):

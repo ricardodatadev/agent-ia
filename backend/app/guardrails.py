@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from app.judge import LLMJudge
+from app.judge import Judge
 from app.models import ChatTurn, GuardrailResult, Intent
 from app.text import normalize
 
@@ -53,7 +53,7 @@ class NoulDecision:
     llm_calls: int
 
 
-def check_input(message: str, judge: LLMJudge) -> NoulDecision:
+def check_input(message: str, judge: Judge) -> NoulDecision:
     """Regex primeiro (zero tokens); só o que ela não pega vai para o motor de decisões (ADR-01).
 
     Urgência sem PII não passa pela camada semântica: um bloqueio indevido aqui deixaria o paciente
@@ -76,7 +76,7 @@ class IntentDecision:
     llm_calls: int
 
 
-def classify_intent(message: str, history: list[ChatTurn], judge: LLMJudge) -> IntentDecision:
+def classify_intent(message: str, history: list[ChatTurn], judge: Judge) -> IntentDecision:
     """Urgência conhecida vai direto para atendimento humano, sem chamar o motor de decisões (ADR-07)."""
     if is_urgent(message):
         return IntentDecision("ATENDIMENTO_HUMANO", urgent=True, llm_calls=0)
