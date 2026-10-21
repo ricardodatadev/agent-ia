@@ -39,11 +39,12 @@ Referência do Jev: [docs.typesafe.ai](https://docs.typesafe.ai/introduction) ·
 Cada decisão começa por uma **camada determinística** (regra fixa, zero tokens) e só então consulta o Jev.
 
 1.  **Noul (Sim / Não):** Segurança de entrada, de baixa latência e baixo custo.
-    *   **Camada determinística:** regex de CPF, Cartão SUS, RG, telefone e e-mail → bloqueia sem chamar o Jev.
-    *   **Jev:** duas perguntas Noul na mesma requisição, `ofensa` e `pii`. Bloqueia se a probabilidade de qualquer uma atingir o limite configurado (padrão 0,5).
+    *   **Camada determinística:** regex de CPF (inclusive com espaços), Cartão SUS, RG, telefone e e-mail (inclusive "arroba" por extenso) → bloqueia sem chamar o Jev.
+    *   **Jev:** três perguntas Noul na mesma requisição: `ofensa`, `pii` e `urgencia`. Ofensa e PII bloqueiam se a probabilidade atingir o limite configurado (padrão 0,5); `urgencia` acima do limite próprio (padrão 0,3, menor para favorecer não deixar passar) marca urgência e passa à frente dos bloqueios.
+    *   **Urgência:** com o Jev ativo, quem decide é o Jev (ele entende negação e contexto: "não estou com dor no peito"). A regra de termos de urgência, com trava de negação, é o **plano B** quando o Jev está fora do ar ou a chave é recusada, e a decisão do modo local.
     *   **Ofensa** → encerra com mensagem de respeito. **PII** → encerra informando o protocolo de privacidade da UBS.
 2.  **Choice (Direcionamento de Fluxo / Intent Classification):** Classifica a intenção para roteamento determinístico no LangGraph.
-    *   **Camada determinística:** termos de urgência ("dor no peito", "falta de ar", "desmaio"…) → `ATENDIMENTO_HUMANO` sem chamar o Jev.
+    *   **Urgência:** decidida no Noul e entregue pronta ao Choice → `ATENDIMENTO_HUMANO` sem chamar o Jev (regra de termos como plano B e no modo local).
     *   **Jev:** uma pergunta Choice, `intencao`, cujas opções são exatamente as rotas do grafo:
         *   `CONSULTA_RAG`: pergunta sobre funcionamento, vacinas ou exames da UBS.
         *   `AGENDAMENTO`: intenção de marcar consulta/especialista → aciona a Tool de Agendamento.
@@ -154,7 +155,7 @@ agent-ia/
 | `typesafe` | Exige o Jev; sem chave, o backend não sobe (erro claro). |
 | `llm` | Força o **modo local**: o LLM configurado responde às mesmas perguntas em JSON validado, com conferência de evidência no Score. Útil para desenvolvimento, uso offline ou sem acesso ao Jev (lista de espera). |
 
-Demais variáveis do Jev: `TYPESAFE_API_KEY`, `TYPESAFE_MODEL`, `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_MIN_CONFIDENCE`.
+Demais variáveis do Jev: `TYPESAFE_API_KEY`, `TYPESAFE_MODEL`, `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_URGENCY_THRESHOLD`, `JEV_MIN_CONFIDENCE`.
 
 ### LLM (geração de respostas, argumentos das tools e modo local)
 

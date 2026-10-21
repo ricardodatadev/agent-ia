@@ -1,8 +1,9 @@
 """Avaliação com LLM real (SPEC §7.3): roda o dataset pelo grafo e mede as metas da SPEC.
 
 Uso (com Qdrant e Ollama no ar):
-    python tests/eval/run_eval.py                 # dataset completo
+    python tests/eval/run_eval.py                 # dataset completo (50 casos)
     python tests/eval/run_eval.py --only rag-01,nc-02 --label teste
+    python tests/eval/run_eval.py --dataset tests/eval/dataset_robustez.jsonl --label robustez  # urgência e PII
 Resultados em tests/eval/results/ (ignorado pelo git) e tabela Markdown no terminal.
 """
 
@@ -134,10 +135,11 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Avaliação do assistente com LLM real.")
     parser.add_argument("--only", help="ids separados por vírgula")
+    parser.add_argument("--dataset", type=Path, default=DATASET, help="arquivo .jsonl (padrão: dataset.jsonl)")
     parser.add_argument("--label", default="eval")
     args = parser.parse_args(argv)
 
-    cases = load_dataset()
+    cases = load_dataset(args.dataset)
     if args.only:
         wanted = set(args.only.split(","))
         cases = [c for c in cases if c["id"] in wanted]

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     typesafe_model: str = "jev-1.13.0"  # versão fixada; o alias jev-latest muda sem aviso
     jev_timeout_s: float = Field(default=10, gt=0)
     jev_noul_threshold: float = Field(default=0.5, ge=0, le=1)
+    jev_urgency_threshold: float = Field(default=0.3, ge=0, le=1)  # menor que o de bloqueio: favorece não deixar passar
     jev_min_confidence: float = Field(default=0.5, ge=0, le=1)
 
     # Embeddings e busca (sempre locais)

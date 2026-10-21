@@ -43,4 +43,33 @@ def test_nao_bloqueia_numeros_comuns(text: str) -> None:
 
 
 def test_padroes_sao_os_da_spec_na_ordem() -> None:
-    assert list(PII_PATTERNS) == ["cpf", "cns", "rg", "telefone", "email"]
+    assert list(PII_PATTERNS) == ["cpf", "cns", "rg", "telefone", "numero_longo", "email", "email_extenso"]
+
+
+@pytest.mark.parametrize(
+    ("text", "kind"),
+    [
+        ("meu cpf é 123 456 789 09", "numero_longo"),
+        ("meu cpf é 123.456.789 09", "numero_longo"),
+        ("cpf 1 2 3 4 5 6 7 8 9 0 9", "numero_longo"),
+        ("me liga no 11 98765 4321", "numero_longo"),
+        ("meu email é maria arroba gmail ponto com", "email_extenso"),
+        ("joao.silva arroba exemplo ponto com ponto br", "email_extenso"),
+    ],
+)
+def test_detecta_variacoes_com_espacos_e_por_extenso(text: str, kind: str) -> None:  # AC-RF02-16
+    assert find_pii(text) == kind
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "consulta dia 12 05 2026 às 14 30",
+        "tenho 2 filhos de 5 e 7 anos e pesam 20 e 25 kg",
+        "tomei 2 comprimidos 3 vezes por dia durante 5 dias",
+        "a arroba do boi subiu",
+        "vacina de 6 em 6 meses, dose de 0 5 ml",
+    ],
+)
+def test_variacoes_nao_geram_falso_positivo(text: str) -> None:
+    assert find_pii(text) is None

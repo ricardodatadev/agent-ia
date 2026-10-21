@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.guardrails import URGENCY_TERMS, classify_intent, is_urgent, mentions_suicide
+from app.guardrails import URGENCY_TERMS, check_input, classify_intent, is_urgent, mentions_suicide
 from app.judge import LLMJudge
 from app.models import ChatTurn
 from tests.fakes import FakeChatModel
@@ -43,7 +43,9 @@ def test_suicidio_identificado_para_cvv() -> None:
 
 def test_urgencia_nao_chama_o_llm() -> None:
     llm = FakeChatModel()  # qualquer chamada falha o teste
-    decision = classify_intent("estou com dor no peito", [], LLMJudge(llm))
+    noul = check_input("estou com dor no peito", LLMJudge(llm))  # modo local: a regra decide antes do LLM
+    assert (noul.urgent, noul.guardrail, noul.llm_calls) == (True, None, 0)
+    decision = classify_intent("estou com dor no peito", [], LLMJudge(llm), urgent=noul.urgent)
     assert (decision.intent, decision.urgent, decision.llm_calls) == ("ATENDIMENTO_HUMANO", True, 0)
     assert llm.calls == []
 

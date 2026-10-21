@@ -28,7 +28,7 @@ def edit(directory: Path, name: str, change: Any) -> None:
 
 def test_arquivos_do_projeto_carregam_com_os_modelos_do_sdk() -> None:
     q = JevQuestions.load()
-    assert set(q.noul) == {"ofensa", "pii"} and all(isinstance(v, Noul) for v in q.noul.values())
+    assert set(q.noul) == {"ofensa", "pii", "urgencia"} and all(isinstance(v, Noul) for v in q.noul.values())
     assert isinstance(q.choice["intencao"], Choice)
     assert set(q.choice["intencao"].criteria) == {"CONSULTA_RAG", "AGENDAMENTO", "ATENDIMENTO_HUMANO", "FORA_DO_NICHO"}
     assert isinstance(q.score["relevancia"], Score) and len(q.score["relevancia"].criteria) == 5
@@ -95,3 +95,9 @@ def test_escolha_do_motor(provider: str, key: str | None, engine: str) -> None: 
 def test_typesafe_sem_chave_falha_citando_a_variavel() -> None:  # AC-RF06-3
     with pytest.raises(JevConfigError, match="TYPESAFE_API_KEY"):
         resolve_engine(Settings(jev_provider="typesafe"))
+
+
+def test_pergunta_de_urgencia_faltando(jevs: Path) -> None:
+    edit(jevs, "noul", lambda d: d.pop("urgencia"))
+    with pytest.raises(JevConfigError, match="noul.json: esperadas as perguntas"):
+        JevQuestions.load(jevs)

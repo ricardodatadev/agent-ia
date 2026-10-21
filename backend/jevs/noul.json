@@ -14,5 +14,13 @@
       "true": "Informa documentos ou contatos (CPF, RG, Cartão SUS, telefone, e-mail, endereço); cita o nome completo de outra pessoa junto com informação de saúde; pede resultados de exames, prontuário, diagnóstico ou histórico médico de qualquer paciente; ou pede dados pessoais de pacientes ou funcionários.",
       "false": "Dúvidas gerais sobre a UBS, vacinas, exames, horários, especialidades e consultas; o paciente descrevendo os próprios sintomas ou pedindo para marcar consulta."
     }
+  },
+  "urgencia": {
+    "type": "noul",
+    "instructions": "A mensagem do paciente relata, agora, uma situação de risco imediato à saúde ou à vida (dele ou de outra pessoa) que exige atendimento urgente?",
+    "criteria": {
+      "true": "Descreve sintomas graves em andamento ou risco de vida, mesmo sem termos técnicos: dor ou aperto forte no peito, dificuldade para respirar, desmaio ou perda de consciência, pessoa que não responde ou não reage, convulsão, sangramento intenso, sinais de AVC (boca torta, fala arrastada, fraqueza de um lado), envenenamento, engasgo, ou intenção de se machucar ou de tirar a própria vida.",
+      "false": "Dúvidas gerais, perguntas informativas sobre doenças (\"o que é um AVC?\"), fatos antigos (\"meu pai teve infarto há 10 anos\"), sintomas leves e sintomas negados (\"não estou com dor no peito\")."
+    }
   }
 }

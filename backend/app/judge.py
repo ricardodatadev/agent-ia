@@ -6,6 +6,7 @@ interface em `jev.py`; o grafo só conhece `Judge`.
 
 import json
 import re
+from dataclasses import dataclass
 from typing import Literal, Protocol, TypeVar, runtime_checkable
 
 from langchain_core.language_models import BaseChatModel
@@ -53,13 +54,23 @@ V = TypeVar("V", bound=BaseModel)
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
 
+@dataclass(frozen=True)
+class NoulResult:
+    """Resposta do Noul: motivo do bloqueio, urgência (None = o motor não opinou) e nº de chamadas."""
+
+    motivo: BlockReason | None
+    urgent: bool | None
+    calls: int
+
+
 @runtime_checkable
 class Judge(Protocol):
     """Decisões Noul, Choice e Score; cada uma devolve (decisão, nº de chamadas ao motor)."""
 
     layer: GuardrailLayer  # camada informada nos bloqueios semânticos ("llm" ou "jev")
+    decides_urgency: bool  # True: o motor responde a urgência (Jev); False: quem decide é a regra de termos
 
-    def noul(self, message: str) -> tuple[BlockReason | None, int]: ...
+    def noul(self, message: str) -> NoulResult: ...
 
     def choice(self, message: str, history: list[ChatTurn]) -> tuple[Intent, int]: ...
 
@@ -149,6 +160,7 @@ class LLMJudge:
     """Modo local: cada decisão devolve (resultado, nº de chamadas ao LLM)."""
 
     layer: GuardrailLayer = "llm"
+    decides_urgency = False  # no modo local a urgência vem da regra de termos (e do Choice, para o resto)
 
     def __init__(self, model: BaseChatModel) -> None:
         self.model = model
@@ -156,15 +168,15 @@ class LLMJudge:
     def _ask(self, system: str, user: str) -> str:
         return message_text(self.model.invoke([SystemMessage(system), HumanMessage(user)]))
 
-    def noul(self, message: str) -> tuple[BlockReason | None, int]:
+    def noul(self, message: str) -> NoulResult:
         """Motivo do bloqueio (None = aprovada). Inválida 2x, ou bloqueio sem motivo → INDETERMINADO."""
         for attempt in range(1, NOUL_ATTEMPTS + 1):
             verdict = parse_verdict(self._ask(NOUL_SYSTEM, noul_user_prompt(message)), NoulVerdict)
             if verdict:
                 if not verdict.bloquear:
-                    return None, attempt
-                return verdict.motivo or "INDETERMINADO", attempt
-        return "INDETERMINADO", NOUL_ATTEMPTS
+                    return NoulResult(None, None, attempt)
+                return NoulResult(verdict.motivo or "INDETERMINADO", None, attempt)
+        return NoulResult("INDETERMINADO", None, NOUL_ATTEMPTS)
 
     def choice(self, message: str, history: list[ChatTurn]) -> tuple[Intent, int]:
         """Intenção da mensagem. Inválida → 1 nova tentativa; persistindo → CONSULTA_RAG."""

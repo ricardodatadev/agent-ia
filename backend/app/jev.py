@@ -26,7 +26,7 @@ from typesafe_sdk import (
 )
 
 from app.config import Settings
-from app.judge import DEFAULT_INTENT, FAIL_SAFE_SCORE, recent_history
+from app.judge import DEFAULT_INTENT, FAIL_SAFE_SCORE, NoulResult, recent_history
 from app.models import BlockReason, ChatTurn, GuardrailLayer, Intent, RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ logging.getLogger("typesafe_sdk").setLevel(logging.WARNING)
 
 JEVS_DIR = Path(__file__).resolve().parents[1] / "jevs"
 NOUL_QUESTIONS: dict[str, BlockReason] = {"ofensa": "OFENSA", "pii": "PII"}
+URGENCY_QUESTION = "urgencia"  # Noul na mesma requisição: não bloqueia, marca urgência
 CHOICE_QUESTION = "intencao"
 SCORE_QUESTION = "relevancia"
 SCORE_LEVELS = 5  # níveis 0–4 → nota 1–5
@@ -83,8 +84,9 @@ class JevQuestions:
         noul_path, choice_path, score_path = (directory / f"{n}.json" for n in ("noul", "choice", "score"))
         noul_raw, choice_raw, score_raw = (_load_file(p) for p in (noul_path, choice_path, score_path))
 
-        if set(noul_raw) != set(NOUL_QUESTIONS):
-            raise JevConfigError(f"noul.json: esperadas as perguntas {sorted(NOUL_QUESTIONS)}, encontradas {sorted(noul_raw)}")
+        expected_noul = set(NOUL_QUESTIONS) | {URGENCY_QUESTION}
+        if set(noul_raw) != expected_noul:
+            raise JevConfigError(f"noul.json: esperadas as perguntas {sorted(expected_noul)}, encontradas {sorted(noul_raw)}")
         if set(choice_raw) != {CHOICE_QUESTION}:
             raise JevConfigError(f"choice.json: esperada só a pergunta '{CHOICE_QUESTION}', encontradas {sorted(choice_raw)}")
         if set(score_raw) != {SCORE_QUESTION}:
@@ -132,6 +134,7 @@ class JevJudge:
     """Implementa `Judge` com o Jev; cada decisão é uma requisição ao `POST /v1/systemone`."""
 
     layer: GuardrailLayer = "jev"
+    decides_urgency = True  # o Jev responde `urgencia`; a regra de termos só entra como plano B
 
     def __init__(
         self,
@@ -140,12 +143,14 @@ class JevJudge:
         model: str,
         noul_threshold: float = 0.5,
         min_confidence: float = 0.5,
+        urgency_threshold: float = 0.3,
     ) -> None:
         self.client = client
         self.questions = questions
         self.model = model
         self.noul_threshold = noul_threshold
         self.min_confidence = min_confidence
+        self.urgency_threshold = urgency_threshold
 
     @classmethod
     def from_settings(cls, settings: Settings, questions: JevQuestions) -> "JevJudge":
@@ -157,7 +162,14 @@ class JevJudge:
             timeout=settings.jev_timeout_s,
             retry=RetryPolicy(max_retries=2, http_statuses=set(RETRY_STATUSES), timeout=settings.jev_timeout_s * 3),
         )
-        return cls(client, questions, settings.typesafe_model, settings.jev_noul_threshold, settings.jev_min_confidence)
+        return cls(
+            client,
+            questions,
+            settings.typesafe_model,
+            settings.jev_noul_threshold,
+            settings.jev_min_confidence,
+            settings.jev_urgency_threshold,
+        )
 
     def close(self) -> None:
         self.client.close()
@@ -179,14 +191,21 @@ class JevJudge:
         )
         return response
 
-    def noul(self, message: str) -> tuple[BlockReason | None, int]:
-        """Ofensa e PII numa requisição; bloqueia pelo maior valor ≥ limiar. Resposta ausente → INDETERMINADO."""
+    def noul(self, message: str) -> NoulResult:
+        """Ofensa, PII e urgência numa requisição.
+
+        Bloqueia pelo maior valor de ofensa/PII ≥ limiar (resposta ausente → INDETERMINADO). A urgência é
+        `urgencia` ≥ `JEV_URGENCY_THRESHOLD`; sem resposta para ela, devolve None e quem decide é a regra.
+        """
         response = self._ask("noul", message, dict(self.questions.noul))
+        urgency = response.nouls.get(URGENCY_QUESTION)
+        urgent = None if urgency is None else urgency.noul >= self.urgency_threshold
         probs = {name: response.nouls.get(name) for name in NOUL_QUESTIONS}
         if any(answer is None for answer in probs.values()):
-            return "INDETERMINADO", 1
+            return NoulResult("INDETERMINADO", urgent, 1)
         name, answer = max(probs.items(), key=lambda item: item[1].noul)  # type: ignore[union-attr]
-        return (NOUL_QUESTIONS[name] if answer.noul >= self.noul_threshold else None), 1  # type: ignore[union-attr]
+        motivo = NOUL_QUESTIONS[name] if answer.noul >= self.noul_threshold else None  # type: ignore[union-attr]
+        return NoulResult(motivo, urgent, 1)
 
     def choice(self, message: str, history: list[ChatTurn]) -> tuple[Intent, int]:
         """`state` estruturado com a mensagem atual e o histórico recente; opção fora das rotas → CONSULTA_RAG."""

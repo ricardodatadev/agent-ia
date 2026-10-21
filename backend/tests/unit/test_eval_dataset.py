@@ -2,7 +2,8 @@
 
 from collections import Counter
 
-from tests.eval.run_eval import compute_metrics, load_dataset
+from app.guardrails import find_pii, urgency_signal
+from tests.eval.run_eval import EVAL_DIR, compute_metrics, load_dataset
 
 ROUTES = {"BLOQUEIO", "CONSULTA_RAG", "AGENDAMENTO", "ATENDIMENTO_HUMANO", "FORA_DO_NICHO"}
 FIELDS = {"id", "message", "expected_route", "expected_guardrail", "expected_fallback", "expected_tool", "urgent", "notes"}
@@ -51,3 +52,35 @@ def test_urgencia_bloqueada_conta_como_falha_de_recall_e_falso_positivo() -> Non
     assert metrics["Recall de urgência (meta 100%)"] == "6/7 (86%)"
     assert metrics["Noul: falsos positivos"] == "1/39 (3%)"
     assert any(d.startswith("urg-03: rota BLOQUEIO") for d in divergences)
+
+
+# --------------------------------------------------------------------------- dataset de robustez (T-26)
+
+ROBUSTEZ = EVAL_DIR / "dataset_robustez.jsonl"
+
+
+def test_dataset_de_robustez_e_valido() -> None:
+    cases = load_dataset(ROBUSTEZ)
+    assert len(cases) == 16 and len({c["id"] for c in cases}) == 16
+    assert all(set(c) == FIELDS and c["expected_route"] in ROUTES for c in cases)
+    groups = Counter(c["id"].split("-")[1] for c in cases)
+    assert groups == {"urg": 7, "neg": 4, "pii": 5}
+
+
+# O que a camada DETERMINÍSTICA faz com cada caso (sem LLM): é o que vale no plano B e no modo local.
+RULE_URGENCY = {
+    "rob-urg-01": "none", "rob-urg-02": "none", "rob-urg-03": "none", "rob-urg-04": "none", "rob-urg-05": "none",
+    "rob-urg-06": "urgent", "rob-urg-07": "urgent",
+    "rob-neg-01": "negated", "rob-neg-02": "negated",
+    "rob-neg-03": "urgent", "rob-neg-04": "urgent",  # limitações conhecidas (fato antigo, pergunta informativa)
+}
+RULE_PII_REGEX = {"rob-pii-01", "rob-pii-02", "rob-pii-03", "rob-pii-04"}  # rob-pii-05 só a camada semântica
+
+
+def test_camada_deterministica_no_dataset_de_robustez() -> None:
+    for case in load_dataset(ROBUSTEZ):
+        cid, message = case["id"], case["message"]
+        if cid in RULE_URGENCY:
+            assert urgency_signal(message) == RULE_URGENCY[cid], cid
+        if cid.startswith("rob-pii"):
+            assert (find_pii(message) is not None) == (cid in RULE_PII_REGEX), cid

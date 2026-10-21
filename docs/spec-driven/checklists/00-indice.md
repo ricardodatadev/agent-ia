@@ -28,6 +28,7 @@
 | 9 | [09-documentacao.md](09-documentacao.md) | T-15 | Fases 7 e 8 | ☑ |
 | 10 (pós-v1) | [10-modelos-provedores.md](10-modelos-provedores.md) | T-16 a T-20 | v1 | ◐ T-16 a T-20 feitas; pendentes com o usuário: chamada real a Claude/Gemini (sem chaves), GIF, repositório público e 1º CI verde |
 | 11 (pós-v1) | [11-jev-typesafe.md](11-jev-typesafe.md) | T-21 a T-25 | v1 | ◐ T-21 a T-25 feitas; pendentes: chamada real ao Jev e avaliação com o dataset (AC-RF06-7) — requerem `TYPESAFE_API_KEY` |
+| 12 (pós-v1) | [12-robustez-decisoes.md](12-robustez-decisoes.md) | T-26 | T-23 | ◐ código e testes feitos (312 passed); pendentes: medição com o LLM real/Jev e CI simulado |
 
 > A Fase 6 (frontend) pode ser feita em paralelo às Fases 2–5, usando o contrato de `POST /chat` da SPEC §5.3.
 

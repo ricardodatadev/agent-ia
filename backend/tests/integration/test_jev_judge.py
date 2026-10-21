@@ -26,8 +26,12 @@ def answers_response(answers: dict[str, Any], status: int = 200) -> httpx2.Respo
     return httpx2.Response(status, json=body, headers={"x-typesafe-request-id": "req-jev"})
 
 
-def noul(ofensa: float, pii: float) -> dict[str, Any]:
-    return {"ofensa": {"type": "noul", "noul": ofensa}, "pii": {"type": "noul", "noul": pii}}
+def noul(ofensa: float, pii: float, urgencia: float = 0.02) -> dict[str, Any]:
+    return {
+        "ofensa": {"type": "noul", "noul": ofensa},
+        "pii": {"type": "noul", "noul": pii},
+        "urgencia": {"type": "noul", "noul": urgencia},
+    }
 
 
 def choice(label: str, confidence: float = 0.9) -> dict[str, Any]:
@@ -110,16 +114,19 @@ def test_perguntas_do_choice_e_do_score_sao_iguais_aos_arquivos() -> None:
     [((0.02, 0.03), None), ((0.91, 0.10), "OFENSA"), ((0.05, 0.88), "PII"), ((0.60, 0.95), "PII"), ((0.5, 0.1), "OFENSA")],
 )
 def test_noul_bloqueia_pelo_maior_valor_acima_do_limiar(probs: tuple[float, float], expected: str | None) -> None:
-    assert judge_with(Recorder({"ofensa": noul(*probs)})).noul("msg") == (expected, 1)
+    result = judge_with(Recorder({"ofensa": noul(*probs)})).noul("msg")
+    assert (result.motivo, result.urgent, result.calls) == (expected, False, 1)
 
 
 def test_limiar_configuravel() -> None:
-    assert judge_with(Recorder({"ofensa": noul(0.7, 0.1)}), noul_threshold=0.8).noul("msg") == (None, 1)
+    result = judge_with(Recorder({"ofensa": noul(0.7, 0.1)}), noul_threshold=0.8).noul("msg")
+    assert (result.motivo, result.calls) == (None, 1)
 
 
 def test_resposta_sem_uma_das_perguntas_vira_indeterminado() -> None:
     rec = Recorder({"ofensa": {"ofensa": {"type": "noul", "noul": 0.01}}})
-    assert judge_with(rec).noul("msg") == ("INDETERMINADO", 1)
+    result = judge_with(rec).noul("msg")
+    assert (result.motivo, result.urgent, result.calls) == ("INDETERMINADO", None, 1)
 
 
 # --------------------------------------------------------------------------- Choice
@@ -188,10 +195,14 @@ def test_rag_completo_com_jev() -> None:
     assert len(rec.requests) == 3
 
 
-def test_regex_e_urgencia_nao_chamam_o_jev() -> None:  # AC-RF06-5: camadas determinísticas sem o Jev
+@pytest.mark.parametrize(
+    "message",
+    ["meu cpf é 123.456.789-09", "meu cpf é 123 456 789 09", "me liga no 11 98765 4321", "meu email é maria arroba gmail ponto com"],
+)
+def test_pii_por_regex_nao_chama_o_jev(message: str) -> None:  # AC-RF02-16
     rec = Recorder(fail(AssertionError("não deveria chamar o Jev")))
-    assert run_graph(rec, "meu cpf é 123.456.789-09")["guardrail"].camada == "regex"
-    assert run_graph(rec, "estou com dor no peito", chat=FakeChatModel())["route"] == "ATENDIMENTO_HUMANO"
+    state = run_graph(rec, message)
+    assert state["guardrail"].model_dump() == {"motivo": "PII", "camada": "regex"}
     assert rec.requests == []
 
 
@@ -238,7 +249,7 @@ def test_logs_nao_contem_o_texto_da_mensagem(caplog: pytest.LogCaptureFixture) -
     assert logging.getLogger("typesafe_sdk").level == logging.WARNING  # o SDK registra corpos em DEBUG
     answer = next(r for r in caplog.records if r.getMessage() == "jev_answer")
     assert answer.jev_model == "jev-1.13.0" and answer.input_tokens == 150
-    assert answer.nouls == {"ofensa": 0.02, "pii": 0.97}
+    assert answer.nouls == {"ofensa": 0.02, "pii": 0.97, "urgencia": 0.02}
     for r in caplog.records:
         assert "Maria Souza" not in f"{r.getMessage()} {r.__dict__}"
 
@@ -268,3 +279,91 @@ def test_auto_sem_chave_usa_modo_local_e_registra_no_log(caplog: pytest.LogCaptu
 def test_typesafe_sem_chave_impede_a_subida() -> None:  # AC-RF06-3
     with pytest.raises(JevConfigError, match="TYPESAFE_API_KEY"):
         create_app(settings=Settings(jev_provider="typesafe"))
+
+
+# --------------------------------------------------------------------------- urgência pelo Jev (T-26)
+
+
+def test_urgencia_pelo_jev_sem_termo_da_lista() -> None:  # AC-RF06-8
+    rec = Recorder({"ofensa": noul(0.01, 0.02, urgencia=0.9)})
+    chat = FakeChatModel()  # qualquer chamada falha o teste
+    state = run_graph(rec, "estou com um aperto no peito muito forte", chat=chat)
+    assert state["route"] == "ATENDIMENTO_HUMANO" and state["urgent"] is True
+    assert state["tool_call"].args["urgente"] is True and "192" in state["reply"]
+    assert len(rec.requests) == 1 and chat.calls == []  # só o Noul: sem Choice e sem extração no LLM
+    assert state["llm_calls"] == 1
+
+
+@pytest.mark.parametrize(("urgencia", "urgent"), [(0.29, False), (0.3, True), (0.9, True)])
+def test_limiar_de_urgencia_e_menor_que_o_de_bloqueio(urgencia: float, urgent: bool) -> None:
+    result = judge_with(Recorder({"ofensa": noul(0.01, 0.01, urgencia)})).noul("msg")
+    assert result.urgent is urgent and result.motivo is None
+
+
+def test_limiar_de_urgencia_configuravel() -> None:
+    result = judge_with(Recorder({"ofensa": noul(0.01, 0.01, 0.5)}), urgency_threshold=0.8).noul("msg")
+    assert result.urgent is False
+
+
+def test_urgencia_passa_a_frente_do_bloqueio_semantico() -> None:
+    rec = Recorder({"ofensa": noul(0.97, 0.90, urgencia=0.8)})
+    state = run_graph(rec, "estou muito mal e vocês são uns idiotas, preciso de ajuda", chat=FakeChatModel())
+    assert state["route"] == "ATENDIMENTO_HUMANO" and state["guardrail"] is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["o que é um AVC?", "meu pai teve um infarto há 10 anos", "nunca tive dor no peito, só queria saber o horário"],
+)
+def test_com_urgencia_baixa_a_regra_de_termos_nao_e_consultada(message: str) -> None:  # AC-RF06-9
+    rec = Recorder({"ofensa": noul(0.01, 0.01, urgencia=0.04), "intencao": choice("CONSULTA_RAG"), "relevancia": score(3.5)})
+    state = run_graph(rec, message)
+    assert state["route"] == "CONSULTA_RAG" and state["urgent"] is False
+    assert len(rec.requests) == 3  # Noul, Choice e Score no Jev
+
+
+def test_a_regra_erraria_nesses_casos_mas_o_jev_evita() -> None:
+    from app.guardrails import is_urgent
+
+    assert is_urgent("o que é um AVC?") and is_urgent("meu pai teve um infarto há 10 anos")
+
+
+def test_sem_resposta_de_urgencia_do_jev_decide_a_regra() -> None:
+    sem_urgencia = {"ofensa": {"type": "noul", "noul": 0.01}, "pii": {"type": "noul", "noul": 0.01}}
+    rec = Recorder({"ofensa": sem_urgencia, "intencao": choice("CONSULTA_RAG"), "relevancia": score(3.5)})
+    assert run_graph(rec, "estou com dor no peito", chat=FakeChatModel())["urgent"] is True
+    assert run_graph(rec, "qual o horário da vacina?")["urgent"] is False
+
+
+# --------------------------------------------------------------------------- plano B: Jev fora do ar (AC-RF06-5)
+
+CAIDAS = [
+    fail(httpx2.ConnectError("sem rede")),
+    fail(httpx2.ReadTimeout("lento")),
+    lambda r: httpx2.Response(503, json={"error": "indisponível"}),
+    lambda r: httpx2.Response(401, json={"error": "invalid api key"}),
+]
+
+
+@pytest.mark.parametrize("handler", CAIDAS, ids=["conexao", "timeout", "5xx", "chave_recusada"])
+def test_jev_fora_do_ar_com_urgencia_a_regra_atende(handler: Handler, caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING):
+        resp = api_client(handler).post("/chat", json={"message": "estou com dor no peito"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["route"] == "ATENDIMENTO_HUMANO" and body["tool_call"]["args"]["urgente"] is True
+    assert "192" in body["reply"]
+    record = next(r for r in caplog.records if r.getMessage() == "urgency_fallback")
+    assert "dor no peito" not in f"{record.getMessage()} {record.__dict__}"  # LGPD: só metadados
+
+
+@pytest.mark.parametrize("message", ["qual o horário da vacina?", "não estou com dor no peito"])
+def test_jev_fora_do_ar_sem_urgencia_continua_503(message: str) -> None:
+    resp = api_client(fail(httpx2.ConnectError("sem rede"))).post("/chat", json={"message": message})
+    assert resp.status_code == 503 and resp.json() == {"detail": UNAVAILABLE_DETAIL}
+
+
+def test_erro_de_programacao_nao_e_engolido_pelo_plano_b() -> None:
+    deps = GraphDeps(retriever=FakeRetriever(), chat_model=FakeChatModel(), judge=judge_with(Recorder(fail(ValueError("bug")))))
+    client = TestClient(create_app(deps=deps, health_probe=lambda: {}), raise_server_exceptions=False)
+    assert client.post("/chat", json={"message": "estou com dor no peito"}).status_code == 500

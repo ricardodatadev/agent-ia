@@ -124,7 +124,9 @@ def test_titulo_do_documento_nao_conta_como_assunto() -> None:
     ],
 )
 def test_noul_modo_local(responses: list[str], expected: tuple) -> None:
-    assert LLMJudge(FakeChatModel(responses=responses)).noul("mensagem") == expected
+    result = LLMJudge(FakeChatModel(responses=responses)).noul("mensagem")
+    assert (result.motivo, result.calls) == expected
+    assert result.urgent is None  # o modo local não opina sobre urgência: quem decide é a regra de termos
 
 
 def test_modo_local_implementa_a_interface_judge() -> None:

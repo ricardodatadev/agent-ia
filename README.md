@@ -16,12 +16,12 @@ Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **r
 
 - **Grafo LangGraph com 3 decisões tipadas** — *Noul* (segurança), *Choice* (intenção) e *Score* (relevância) — cada uma podendo encerrar o fluxo cedo, sem gastar tokens à toa.
 - **Motor de decisões plugável:** o grafo depende de uma interface (`Judge`); o **Jev da TypeSafe AI** responde via SDK oficial, com perguntas versionadas em `backend/jevs/*.json` e validadas na inicialização, e o **modo local** usa o LLM configurado com saída JSON validada.
-- **Camadas determinísticas antes do LLM:** regex de CPF/CNS/RG/telefone/e-mail e termos de urgência decidem em milissegundos e com zero tokens.
+- **Camadas determinísticas:** regex de CPF/CNS/RG/telefone/e-mail (inclusive com espaços e "arroba") decide em milissegundos e com zero tokens. Para urgência, a regra de termos — com **trava de negação** ("não estou com dor no peito" não é urgência) — é o **plano B**: quem decide é o Jev, e a regra assume se ele estiver fora do ar ou sem chave.
 - **Falha segura nas decisões:** saída inválida do LLM vira bloqueio `INDETERMINADO`, rota de consulta protegida pelo Score ou nota 1 (fallback) — uma decisão quebrada nunca libera uma resposta sem evidência.
 - **Score ancorado em evidência:** o LLM precisa citar a frase do documento; o código confere se a citação existe e se trata do assunto perguntado.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
-- **Avaliação com LLM real** em 50 casos rotulados, **251 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
+- **Avaliação com LLM real** em 50 casos rotulados, **312 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
 
 ## Arquitetura
 
@@ -56,7 +56,7 @@ flowchart TD
 
 | Decisão | Pergunta | Camada determinística (0 tokens) | Motor de decisões (Jev ou modo local) | Falha segura |
 | :--- | :--- | :--- | :--- | :--- |
-| **Noul** | A mensagem deve ser bloqueada? | Regex de CPF, CNS, RG, telefone, e-mail; urgência passa direto | Ofensa e PII semântica ("o resultado do exame da Ana Lima") | Resposta ausente ou inválida → bloqueio `INDETERMINADO` |
+| **Noul** | A mensagem deve ser bloqueada? | Regex de CPF, CNS, RG, telefone, e-mail (inclusive com espaços); urgência decidida antes dos bloqueios semânticos | Ofensa e PII semântica ("o resultado do exame da Ana Lima") | Resposta ausente ou inválida → bloqueio `INDETERMINADO` |
 | **Choice** | Qual a intenção? | 18 termos de urgência → atendimento humano | 4 intenções = as rotas do grafo | Fora das rotas → `CONSULTA_RAG` (o Score protege) |
 | **Score** | Os trechos respondem à pergunta? | — | Nota 1–5 (no modo local, com citação conferida nos trechos e no assunto) | Inválida ou com confiança baixa → nota 1 → fallback |
 
@@ -68,7 +68,7 @@ O fluxo de cada decisão é sempre o mesmo: **camada determinística → motor d
 | :--- | :--- | :--- |
 | O que é | Modelo especializado em decisões tipadas: devolve probabilidade/confiança, não gera texto | O LLM configurado responde em JSON, com temperatura 0 e saída validada por Pydantic |
 | Como pergunta | `POST /v1/systemone` pelo SDK oficial `typesafe-sdk`, com as perguntas de [`backend/jevs/`](backend/jevs) (`noul.json`, `choice.json`, `score.json`) | Prompts curtos com exemplos em `backend/app/prompts.py` |
-| Noul | `ofensa` e `pii` numa requisição; bloqueia se a probabilidade ≥ `JEV_NOUL_THRESHOLD` | `{"bloquear", "motivo"}` com 1 nova tentativa |
+| Noul | `ofensa`, `pii` e `urgencia` numa requisição; bloqueia se a probabilidade ≥ `JEV_NOUL_THRESHOLD`; urgência se ≥ `JEV_URGENCY_THRESHOLD` (0,3) | `{"bloquear", "motivo"}` com 1 nova tentativa; urgência vem da regra de termos |
 | Choice | `state` com a mensagem atual e o histórico recente; opções = rotas do grafo | `{"intencao"}` com 1 nova tentativa |
 | Score | 5 níveis (0–4) → nota 1–5; confiança < `JEV_MIN_CONFIDENCE` → fallback | Nota + citação da evidência, conferida no código |
 | Quando é usado | `JEV_PROVIDER=auto` (padrão) com `TYPESAFE_API_KEY` definida, ou `JEV_PROVIDER=typesafe` | `auto` sem chave, ou `JEV_PROVIDER=llm` |
@@ -82,7 +82,8 @@ Práticas adotadas na integração: SDK oficial e modelo do Jev **fixados por ve
 | Tipo de mensagem | Chamadas aos modelos | Tempo típico (CPU, modo local) |
 | :--- | :---: | :--- |
 | CPF, telefone, e-mail (regex) | **0** | ~10 ms |
-| Urgência com termo conhecido | **0** | ms (encaminhamento com protocolo e 192) |
+| Urgência com termo conhecido (modo local) | **0** | ms (encaminhamento com protocolo e 192) |
+| Urgência com o Jev | 1 (a mesma requisição do Noul) | <1 s, sem Choice nem extração no LLM |
 | Ofensa / PII semântica | 1 | ~4 s |
 | Fora do escopo | 2 | ~7 s |
 | Agendamento / atendente | 3 | 9–33 s |
@@ -95,7 +96,7 @@ Respostas de bloqueio, fora do escopo, fallback e das tools são **textos fixos*
 
 | Risco | Guardrail | Como funciona |
 | :--- | :--- | :--- |
-| Urgência médica sem orientação | Termos de urgência com precedência sobre o LLM; 192 em toda resposta de atendimento; CVV (188) em menção a suicídio | Determinístico: não depende do modelo acertar |
+| Urgência médica sem orientação | **Jev decide** (pergunta `urgencia`, limiar baixo para não deixar passar); regra de termos com trava de negação como plano B e no modo local; 192 em toda resposta de atendimento e banner fixo na tela; CVV (188) em menção a suicídio | Duas redes independentes: o plano B funciona com o Jev fora do ar |
 | Vazamento de dados (LGPD) | Noul em duas camadas; histórico com PII descartado; logs só com metadados | Nenhum texto de mensagem é gravado em log |
 | Alucinação | Score com evidência conferida no código; geração restrita ao contexto; fontes exibidas | Sem evidência → resposta fixa, nada é gerado |
 | Uso fora do propósito / prompt injection | Choice com rota de escopo; prompts nunca revelam instruções | Resposta fixa |
@@ -159,7 +160,7 @@ docker compose run --rm backend python scripts/ingest.py
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest                      # 251 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
+pytest                      # 312 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
 pytest -m integration       # contra a stack real: Qdrant + bge-m3 + API no ar
 python tests/eval/run_eval.py   # avaliação com o LLM real nos 50 casos de tests/eval/dataset.jsonl
 ```
@@ -196,7 +197,7 @@ Detalhes, alternativas e motivos em [SPEC §9](docs/spec-driven/SPEC.md#9-decis�
 | 02 | Backend sem estado; histórico no cliente | Menos superfície LGPD e menos infraestrutura |
 | 03 | Respostas fixas para bloqueio, escopo, fallback e tools | Determinismo, zero tokens, texto revisável |
 | 04 | Uma tool por rota no `bind_tools` | Permissão mínima; o roteamento já foi decidido pelo Choice |
-| 07 | Termos de urgência antes dos LLMs | Falso negativo em urgência é o erro mais caro do sistema |
+| 07 | Urgência decidida pelo Jev; regra de termos com trava de negação como plano B | Falso negativo é o erro mais caro, mas a regra literal gerava falsos positivos ("não estou com dor no peito") |
 | 08 | Especialidade em texto livre, normalizada no código | Com enum, modelos pequenos "escolhem" uma especialidade que o paciente não disse |
 | 09/10 | Llama 3.2 3B em CPU, timeout 120 s, top-k 3, modelos sempre em memória | Cabe na RAM do Docker e é 2–3× mais rápido que o 8B |
 | 11 | Score com citação conferida no código | O modelo pequeno dava notas incoerentes com a própria citação |
@@ -218,6 +219,7 @@ A mecânica (grafo, decisões, guardrails, API, UI) é independente do domínio.
 - **Latência em CPU:** perguntas respondidas pelo RAG levam ~1 minuto (Score + geração). Com GPU no Ollama, ou com Claude/Gemini via API, cai para segundos.
 - **Erros que falham de forma segura:** "qual o nome do diretor?" foi classificada como fora do escopo e um prompt injection foi bloqueado como `INDETERMINADO` — ambos com texto fixo, nada inventado.
 - **Geração com modelo pequeno:** na revisão manual, 1 de 10 respostas acrescentou uma frase que não está nos documentos (sem risco clínico). Próximo passo: modelo maior ou verificação da resposta contra o contexto.
+- **Regra de urgência e perguntas informativas:** no modo local e no plano B, "o que é um AVC?" ou "meu pai teve infarto há 10 anos" ainda são tratados como urgência, porque a regra não distingue contexto (a trava só cobre negação). Com o Jev ativo essa distinção é da pergunta `urgencia`. Os casos estão em `tests/eval/dataset_robustez.jsonl`, ainda sem medição com o LLM real nem com o Jev.
 - **Jev ainda não avaliado com o dataset:** a integração está testada pelo SDK real com rede simulada (contrato, decisões, erros, LGPD), mas a chamada real e as métricas com o Jev dependem de chave (lista de espera).
 - **Busca:** sem re-ranking nem busca híbrida (ADR-05); a avaliação não mostrou necessidade.
 - **Escopo:** sem agendamento real, autenticação ou persistência de conversas (por decisão, LGPD).

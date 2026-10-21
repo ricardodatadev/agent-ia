@@ -128,7 +128,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
                 },
             )
             return {"route": "BLOQUEIO", "guardrail": decision.guardrail, "llm_calls": calls(state, decision.llm_calls)}
-        return {"guardrail": None, "llm_calls": calls(state, decision.llm_calls)}
+        return {"guardrail": None, "urgent": decision.urgent, "llm_calls": calls(state, decision.llm_calls)}
 
     def resposta_bloqueio(state: GraphState) -> dict[str, Any]:
         reply = BLOCK_REPLIES[state["guardrail"].motivo]
@@ -137,7 +137,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         return {"reply": reply}
 
     def choice(state: GraphState) -> dict[str, Any]:
-        decision = classify_intent(state["message"], state.get("history", []), deps.judge)
+        decision = classify_intent(state["message"], state.get("history", []), deps.judge, urgent=state.get("urgent", False))
         return {"route": decision.intent, "urgent": decision.urgent, "llm_calls": calls(state, decision.llm_calls)}
 
     def resposta_fora_nicho(state: GraphState) -> dict[str, Any]:

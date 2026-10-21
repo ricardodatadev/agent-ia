@@ -89,7 +89,7 @@ Assistente virtual para pacientes de uma UBS que:
 ### RF02 — Triagem e guardrails com Jev
 
 Executados nesta ordem, cada um podendo encerrar o fluxo. Cada decisão começa por uma **camada determinística** (zero tokens) e só então consulta o motor de decisões (RF06):
-- **Jev (padrão quando há chave):** as perguntas ficam em `backend/jevs/*.json` no formato da API e são enviadas pelo SDK oficial `typesafe-sdk`. Mapeamento: Noul `ofensa` + `pii` (uma requisição; bloqueia se a probabilidade ≥ `JEV_NOUL_THRESHOLD`); Choice `intencao` (opções = rotas do grafo); Score `relevancia` (níveis 0–4 → nota 1–5; confiança < `JEV_MIN_CONFIDENCE` → fallback).
+- **Jev (padrão quando há chave):** as perguntas ficam em `backend/jevs/*.json` no formato da API e são enviadas pelo SDK oficial `typesafe-sdk`. Mapeamento: Noul `ofensa`, `pii` e `urgencia` (uma requisição; `ofensa`/`pii` bloqueiam se a probabilidade ≥ `JEV_NOUL_THRESHOLD`; `urgencia` ≥ `JEV_URGENCY_THRESHOLD` marca urgência); Choice `intencao` (opções = rotas do grafo); Score `relevancia` (níveis 0–4 → nota 1–5; confiança < `JEV_MIN_CONFIDENCE` → fallback).
 - **Modo local:** o LLM configurado responde em JSON com **temperatura 0**, **saída validada por Pydantic** e **teto de tokens de saída baixo** (120; Noul/Choice usam ~15, o Score ~50 por citar a evidência — ADR-11).
 
 As regras e os critérios de aceite abaixo valem para os dois motores.
@@ -97,12 +97,17 @@ As regras e os critérios de aceite abaixo valem para os dois motores.
 #### RF02.1 — Noul (segurança de entrada)
 
 **Regras:**
-1. **Camada determinística (custo zero de tokens)** executada antes do motor de decisões: regex para CPF (com/sem máscara), CNS (15 dígitos), RG (com máscara), telefone, e-mail. Match → bloqueio `PII` sem chamar o Jev nem o LLM.
+1. **Camada determinística (custo zero de tokens)** executada antes do motor de decisões: regex para CPF (com/sem máscara e **com espaços ou dígito a dígito**), CNS (15 dígitos), RG (com máscara), telefone (inclusive com espaços), e-mail (inclusive escrito por extenso: "maria arroba gmail ponto com"). Match → bloqueio `PII` sem chamar o Jev nem o LLM. Números por extenso ("um dois três…") ficam para a camada semântica.
 2. **Camada semântica (motor de decisões)**: cobre casos que a regex não pega (ex.: "me passa o resultado do exame da minha vizinha Maria Souza").
    - **Jev:** perguntas Noul `ofensa` e `pii` → bloqueia com o motivo de maior probabilidade se ela for ≥ `JEV_NOUL_THRESHOLD` (padrão 0,5). Resposta ausente → `INDETERMINADO` (falha segura). `camada = "jev"`.
    - **Modo local:** prompt curto que responde `{"bloquear": bool, "motivo": "OFENSA" | "PII" | null}`. **Saída inválida: 1 nova tentativa; persistindo, bloqueia com motivo `INDETERMINADO` (falha segura).** `bloquear: true` sem motivo também vira `INDETERMINADO`. `camada = "llm"`.
    - Se a mensagem bloqueada também contiver termo de urgência (ADR-07), a resposta de bloqueio acrescenta a orientação de ligar 192.
-   - **Precedência da urgência (ADR-07, revisão de 2026-10-20):** mensagem com termo de urgência e sem PII na regex **não** passa pela camada semântica — segue direto para `ATENDIMENTO_HUMANO`. Motivo: na avaliação da reconstrução, o Noul-LLM bloqueou "meu filho … se envenenou" como PII e "estou pensando em me matar" como OFENSA (recall de urgência 71%, abaixo da meta do AC-RF02-10). Custo aceito: uma ofensa acompanhada de termo de urgência chega ao atendimento humano em vez de ser bloqueada.
+   - **Urgência (ADR-07; revisões de 2026-10-20 e 2026-10-21 — T-26):** a urgência é decidida **no Noul**, antes dos bloqueios semânticos de ofensa/PII, e chega pronta ao Choice. Quem decide depende do motor:
+     - **Jev:** a pergunta Noul `urgencia` vai **na mesma requisição** de `ofensa` e `pii` (sem chamada extra). Probabilidade ≥ `JEV_URGENCY_THRESHOLD` (padrão **0,3**, mais baixo que o de bloqueio, para favorecer não deixar passar) → urgência, que **passa à frente** de qualquer bloqueio semântico. Com o Jev ativo, a regra de termos **não** é consultada (o Jev entende negação e contexto). Resposta ausente para `urgencia` → decide a regra.
+     - **Plano B (Jev indisponível, chave recusada ou resposta sem `urgencia`):** decide a **regra de termos de urgência** (Apêndice C.2, com trava de negação). Se ela marcar urgência, o atendimento segue **sem o Jev**; se não, o erro original é devolvido (`503`/`500`).
+     - **Modo local:** a regra de termos decide a urgência clara **antes** do Noul-LLM, sem chamada; o que ela não decidir segue para o Noul-LLM e o Choice, que encaminham sintomas ao atendimento humano.
+     - **Motivo:** na avaliação da reconstrução, o Noul-LLM bloqueou "meu filho … se envenenou" como PII e "estou pensando em me matar" como OFENSA (recall de urgência 71%). A regra literal, por sua vez, tratava como urgência "não estou com dor no peito", "o que é um AVC?" e "meu pai teve infarto há 10 anos". Custo aceito: uma ofensa acompanhada de urgência chega ao atendimento humano em vez de ser bloqueada.
+     - **Limitação conhecida:** no modo local e no plano B, a regra não distingue pergunta informativa ou fato antigo ("o que é um AVC?"); com o Jev ativo essa distinção é do `urgencia`.
 3. Mensagens com tentativa de prompt injection ("ignore as instruções...") são tratadas como entrada normal pelas decisões seguintes; o system prompt de geração nunca expõe instruções internas. **[PREMISSA]** Sem classificador dedicado de injection na v1.
 
 **Respostas padrão (texto fixo, sem geração):**
@@ -131,7 +136,7 @@ As regras e os critérios de aceite abaixo valem para os dois motores.
 
 - Resposta inválida ou fora das opções → rota padrão `CONSULTA_RAG` (o Score protege contra resposta sem evidência). No modo local, há **1 nova tentativa** antes do padrão.
 - Sintomas de urgência (dor no peito, falta de ar, sangramento intenso, desmaio) → `ATENDIMENTO_HUMANO`. A resposta sempre inclui orientação de ligar **192 (SAMU)** em emergência.
-- **Rede de segurança determinística (ADR-07):** antes do motor de decisões, uma lista de termos de urgência (normalizada, sem acentos) roteia direto para `ATENDIMENTO_HUMANO` **sem chamar o Jev nem o LLM**. O motor continua classificando os demais casos (inclusive sintomas não listados).
+- **Urgência (ADR-07, revisada na T-26):** decidida no Noul (ver RF02.1) e entregue pronta ao Choice: urgência → `ATENDIMENTO_HUMANO`, **sem chamar o motor de decisões**. Com o Jev ativo a decisão é do Jev (`urgencia`); a regra de termos só atua no modo local e como plano B. O motor continua classificando os demais casos (inclusive sintomas não listados).
 - O Choice recebe as últimas 4 mensagens do histórico (até 300 caracteres cada) para resolver follow-ups como "e para pediatra?". No Jev, o `state` é estruturado: `{"mensagem_atual": ..., "historico": [{"autor", "texto"}]}`.
 
 **Critérios de aceite:**
@@ -155,6 +160,9 @@ As regras e os critérios de aceite abaixo valem para os dois motores.
 - **AC-RF02-11** — *Given* pergunta coberta pelos documentos, *Then* `score >= 3`, resposta gerada e `sources` com ≥ 1 item.
 - **AC-RF02-12** — *Given* pergunta sobre a UBS **não** coberta pelos documentos, *Then* `route = "CONSULTA_RAG"`, `fallback = true` e nenhuma chamada de geração.
 - **AC-RF02-13** — A resposta gerada não cita informações ausentes do contexto (verificado no dataset de avaliação por revisão manual).
+- **AC-RF02-14** — *Given* "não estou com dor no peito" (e "nunca tive dor no peito", "estou sem dor no peito"), *When* avaliada pela regra de termos, *Then* a regra **não decide** urgência e devolve a decisão ao motor.
+- **AC-RF02-15** — *Given* "Não estou com meus documentos e tenho uma dor no peito" (e "não aguento essa dor no peito"), *Then* a regra decide **urgência**: o "não" não nega o sintoma.
+- **AC-RF02-16** — *Given* "meu cpf é 123 456 789 09", "me liga no 11 98765 4321" ou "maria arroba gmail ponto com", *Then* `route = "BLOQUEIO"`, `guardrail.motivo = "PII"`, `camada = "regex"`, sem chamar o motor.
 
 ---
 
@@ -231,7 +239,7 @@ class ToolResult(BaseModel):
 - Aquecimento (ADR-10): no startup, depois da ingestão e antes de aceitar requisições, o backend carrega o LLM e o modelo de embeddings no Ollama (1 token e 1 embedding, `keep_alive=-1`) e executa uma vez cada decisão do modo local (Noul, Choice, Score) para o Ollama manter os prompts de sistema em cache; falha no aquecimento vai para o log e não impede a subida. Motivo (reconstrução, 2026-10-20): sem aquecimento, as duas primeiras perguntas após `docker compose up` deram 503 (carregamento a frio do modelo em CPU, ~95 s, estourava o timeout de 120 s); só carregando o modelo, a 1ª pergunta RAG ainda levava ~3 min (cada prompt de sistema ~30 s na 1ª avaliação).
 - Configuração por `.env` (com `.env.example` versionado, contendo blocos comentados para cada opção de LLM). Variáveis:
   - **LLM:** `LLM_PROVIDER` (`ollama` | `anthropic` | `google`), `LLM_MODEL`, `LLM_TIMEOUT_S`, `ANTHROPIC_API_KEY`, `ANTHROPIC_EFFORT`, `GOOGLE_API_KEY` (ADR-13).
-  - **Motor de decisões:** `JEV_PROVIDER` (`auto` | `typesafe` | `llm`), `TYPESAFE_API_KEY`, `TYPESAFE_MODEL`, `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_MIN_CONFIDENCE` (RF06).
+  - **Motor de decisões:** `JEV_PROVIDER` (`auto` | `typesafe` | `llm`), `TYPESAFE_API_KEY`, `TYPESAFE_MODEL`, `JEV_TIMEOUT_S`, `JEV_NOUL_THRESHOLD`, `JEV_URGENCY_THRESHOLD`, `JEV_MIN_CONFIDENCE` (RF06).
   - **Busca e ingestão:** `EMBED_MODEL`, `OLLAMA_BASE_URL`, `QDRANT_URL`, `QDRANT_COLLECTION`, `TOP_K`, `SCORE_THRESHOLD`, `AUTO_INGEST`.
   - **API e interface:** `CORS_ORIGINS`, `SHOW_DEBUG` (RF04).
   - No compose, `OLLAMA_BASE_URL` e `QDRANT_URL` são sobrescritos com os nomes dos serviços; `OLLAMA_KEEP_ALIVE=-1` mantém os modelos em memória (ADR-10).
@@ -261,9 +269,11 @@ class ToolResult(BaseModel):
 - **AC-RF06-2** — *Given* `JEV_PROVIDER=auto` sem chave, *When* o backend sobe, *Then* usa o modo local e registra essa escolha no log.
 - **AC-RF06-3** — *Given* `JEV_PROVIDER=typesafe` sem chave, *When* o backend sobe, *Then* falha com mensagem citando `TYPESAFE_API_KEY`.
 - **AC-RF06-4** — *Given* um arquivo de `jevs/` divergente do grafo (opção ou nível faltando, campo desconhecido), *When* o backend sobe, *Then* falha com mensagem clara.
-- **AC-RF06-5** — *Given* o Jev indisponível, *When* uma mensagem chega ao Noul, *Then* `/chat` responde `503` amigável; a regex de PII e os termos de urgência continuam funcionando sem o Jev.
+- **AC-RF06-5** — *Given* o Jev indisponível (conexão, timeout, 429, 5xx, resposta malformada) ou com chave recusada, *When* chega uma mensagem sem PII na regex, *Then* se a regra de termos de urgência a marcar como urgência, o atendimento é feito **sem o Jev** (plano B); caso contrário `/chat` responde `503` amigável (`500` para chave recusada). A regex de PII continua funcionando sem o Jev.
 - **AC-RF06-6** — A requisição segue o contrato da API (`POST /v1/systemone`, `Authorization: Bearer`, `model`, `state`, `questions` iguais aos arquivos JSON), e nenhum log contém o texto da mensagem.
 - **AC-RF06-7** — No dataset de avaliação (seção 7.3), o Jev atinge as mesmas metas do AC-RF02-10.
+- **AC-RF06-8** — *Given* o Jev ativo e "estou com um aperto no peito muito forte" (nenhum termo da lista), *When* o Jev responde `urgencia` ≥ `JEV_URGENCY_THRESHOLD`, *Then* `route = "ATENDIMENTO_HUMANO"` com `urgente = true`, sem chamada extra ao Jev nem ao LLM de extração.
+- **AC-RF06-9** — *Given* o Jev ativo e "o que é um AVC?" ou "nunca tive dor no peito, só queria saber o horário" com `urgencia` baixa, *Then* a regra de termos **não** é consultada e a mensagem segue o fluxo normal (Choice).
 
 ---
 
@@ -438,8 +448,9 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-13 | Testes unitários e de integração (seção 7.1–7.2) | Todos os ACs automatizáveis | T-08, T-09 | ☑ |
 | T-14 | Dataset de avaliação + runner; registrar resultados no README | AC-RF02-10, AC-RF02-13 | T-13 | ☑ |
 | T-15 | README: arquitetura, decisões, como rodar, como trocar de nicho, resultados da avaliação | — | T-12, T-14 | ☑ |
+| T-26 | Robustez da urgência e da PII: pergunta `urgencia` no Jev, regra de termos como plano B com trava de negação, PII com espaços e por extenso | AC-RF02-14..16, AC-RF06-5, AC-RF06-8..9 | T-23 | ☑ |
 
-> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) e [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI).
+> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) e [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII).
 
 **Definition of Done (por tarefa):** código tipado; ACs vinculados cobertos por teste ou verificação manual registrada no PR/commit; `pytest` passando; sem segredos no código; spec atualizada se o comportamento mudou.
 
@@ -517,7 +528,7 @@ Métricas reportadas: acurácia por decisão (Noul, Choice, Score) e por motor (
 | ADR-12 | Comparação `llama3.2:3b` × `qwen2.5:3b` → **Llama mantido como padrão**; Qwen como opção no `.env` | Qwen como padrão (adotado por um commit e revertido) | Mesmo dataset (50 casos, CPU): Qwen tem CHOICE 100% (Llama 97%), mas **recall de urgência 86% (Llama 100%) — abaixo da meta do AC-RF02-10** ("Acho que estou tendo um AVC" bloqueada como OFENSA pelo NOUL-LLM), 5% de falsos positivos no NOUL (Llama 0%), RAG coberto 92% (Llama 100%) e RAG médio 69 s (Llama 49 s). As diferenças são de 1–2 casos, mas o erro do Qwen é crítico e o Llama é mais rápido. Viés: prompts/limiares foram ajustados com o Llama. Precedência da urgência sobre o NOUL-LLM foi proposta e não adotada (com o Llama a meta já é atingida). |
 | ADR-13 | Provedor do LLM configurável: Ollama local (padrão), API do Claude ou API do Gemini (`LLM_PROVIDER`) | Só Ollama (ADR-06) | Permite usar um modelo mais capaz/rápido quando não há GPU, sem mudar o grafo. **Custo LGPD:** com API externa, as mensagens dos pacientes saem da máquina (contraria o ADR-06) — aviso explícito no `.env.example` e no README; o padrão continua local. Embeddings e Qdrant ficam sempre locais. Código lê respostas com `.text` (as APIs devolvem blocos de thinking) e falhas de rede/limite/5xx das APIs viram 503. |
 | ADR-14 | **Jev da TypeSafe AI como motor das decisões Noul, Choice e Score**, com modo local quando não há chave (`JEV_PROVIDER=auto`) | Só LLM como juiz (v1); só Jev | O Jev é um modelo especializado em decisões tipadas: devolve probabilidade/confiança, aceita várias perguntas por requisição e, pela documentação, custa US$ 0,042/M tokens de entrada (saída gratuita) com 70–500 ms por chamada. O modo local mantém o projeto executável sem acesso ao Jev (lista de espera) e offline. Implementação com práticas de mercado: SDK oficial fixado, perguntas versionadas em JSON e validadas na inicialização, modelo fixado por versão, limiares configuráveis, falha segura, LGPD nos logs e testes pelo SDK com rede simulada. Custos: com o Jev, as mensagens saem da máquina (LGPD — documentado); o Score do Jev não cita evidência, então a conferência do ADR-11 vale só no modo local; metas a confirmar com o dataset quando houver chave (AC-RF06-7). |
-| ADR-07 | Termos de urgência roteiam para `ATENDIMENTO_HUMANO` antes do CHOICE-LLM | Depender só do LLM | Falso negativo em urgência tem impacto alto; regra determinística garante recall nos casos conhecidos e economiza tokens. Custo: falsos positivos (ex.: "sangramento leve") vão para atendimento humano — aceitável. **Revisão (2026-10-20):** a urgência também passa à frente do Noul-LLM (só a regex de PII vem antes) — ver RF02.1. |
+| ADR-07 | Termos de urgência roteiam para `ATENDIMENTO_HUMANO` antes do CHOICE-LLM | Depender só do LLM | Falso negativo em urgência tem impacto alto; regra determinística garante recall nos casos conhecidos e economiza tokens. Custo: falsos positivos (ex.: "sangramento leve") vão para atendimento humano — aceitável. **Revisão (2026-10-20):** a urgência também passa à frente do Noul-LLM (só a regex de PII vem antes) — ver RF02.1. **2ª revisão (T-26, 2026-10-21):** a regra literal gerava falsos positivos por negação, pergunta informativa e fato antigo ("não estou com dor no peito"); a urgência passa a ser decidida pelo Jev (pergunta `urgencia`, limiar 0,3) com a regra de termos — agora com trava de negação — como **plano B** (Jev fora do ar, chave recusada) e como decisão do modo local. |
 
 ---
 
@@ -550,8 +561,8 @@ considerar as metas atingidas.
 | :--- | :--- | :--- | :--- |
 | Prompts do modo local e da geração | `backend/app/prompts.py` | `NOUL_SYSTEM`, `CHOICE_SYSTEM` (com few-shot), `SCORE_SYSTEM` (com evidência), `GENERATE_SYSTEM`, `TOOL_AGENDAMENTO_SYSTEM`, `TOOL_ATENDENTE_SYSTEM` | RF02 (modo local), RF03 |
 | Textos fixos de resposta | `backend/app/prompts.py` | Bloqueio (`OFENSA`, `PII`, `INDETERMINADO`), fora do escopo, fallback, emergência (192), CVV (188), agendamento, atendimento | RF02, RF03 |
-| Perguntas do Jev | `backend/jevs/noul.json`, `choice.json`, `score.json` | `instructions` e `criteria` de `ofensa`, `pii`, `intencao` e `relevancia`, no formato da API | RF02 (Jev), RF06 |
-| Padrões de PII | Apêndice C.1 (origem: `PII_PATTERNS`) | Regex de CPF, CNS, RG, telefone e e-mail | RF02.1 |
+| Perguntas do Jev | `backend/jevs/noul.json`, `choice.json`, `score.json` | `instructions` e `criteria` de `ofensa`, `pii`, `urgencia`, `intencao` e `relevancia`, no formato da API | RF02 (Jev), RF06 |
+| Padrões de PII | Apêndice C.1 (origem: `PII_PATTERNS`) | Regex de CPF, CNS, RG, telefone, e-mail, dígitos com separadores e e-mail por extenso | RF02.1 |
 | Termos de urgência | Apêndice C.2 (origem: `URGENCY_TERMS`) | Os 18 termos normalizados que roteiam para atendimento humano | RF02.2, ADR-07 |
 | Especialidades e sinônimos | Apêndice C.3 (origem: `ESPECIALIDADES`, `ESPECIALIDADE_TERMS`) | As 8 especialidades e os termos que as identificam | RF03, ADR-08 |
 | Constantes de decisão | `backend/app/judge.py`, `backend/app/jev.py`, `backend/app/rag.py` | Sobreposição mínima da evidência (0,7), limites de nota com/sem evidência (3/2), níveis do Score do Jev (5), chunk (800/120), histórico (4 turnos × 300 caracteres no Choice) | RF01, RF02, ADR-11 |
@@ -612,11 +623,20 @@ Avaliados em ordem; o primeiro que casar define o tipo. Sintaxe do módulo `re` 
 | `cns` | `(?<!\d)[1-9]\d{2}\s?\d{4}\s?\d{4}\s?\d{4}(?!\d)` |
 | `rg` | `(?<!\d)\d{1,2}\.\d{3}\.\d{3}-[\dxX](?!\w)` |
 | `telefone` | `(?<!\d)(?:\(?\d{2}\)?\s?)?9?\d{4}-?\d{4}(?!\d)` |
+| `numero_longo` | `(?<!\d)(?:\d[\s.\-]?){10}\d(?!\d)` (11 dígitos com espaços, pontos ou traços: CPF ou telefone com espaços, dígito a dígito) |
 | `email` | `[\w.+-]+@[\w-]+(?:\.[\w-]+)+` |
+| `email_extenso` | `\b[\w.+-]+\s+arroba\s+[\w-]+(?:\s+ponto\s+[\w-]+)+` |
 
 ### C.2 Termos de urgência (RF02.2, ADR-07 — 18 termos)
 
-Qualquer termo presente → `ATENDIMENTO_HUMANO` com `urgente = true`, sem chamar o motor de decisões.
+Termo presente **e não negado** → a regra decide **urgência** (`ATENDIMENTO_HUMANO`, `urgente = true`), sem chamar o motor. Com o Jev ativo a regra só atua como plano B (RF02.1).
+
+**Trava de negação.** A regra se **abstém** (devolve a decisão ao motor) quando todas as ocorrências de termos estão negadas. Há negação quando, no texto normalizado, **imediatamente antes** do termo vem `nao`, `nunca`, `nem` ou `sem`, seguido de no máximo 4 palavras de ligação entre `estou`, `esta`, `tenho`, `tem`, `tive`, `tinha`, `sinto`, `senti`, `sentindo`, `com`, `de`, `a`, `o`, `uma`, `um`, `nenhuma`, `nenhum`, `mais`. Qualquer outra palavra entre o negador e o termo quebra a trava; termos que já começam com `nao` (`nao consigo respirar`, `nao acorda`) nunca são negados.
+
+| Mensagem | Regra |
+| :--- | :--- |
+| "não estou com dor no peito", "nunca tive dor no peito", "estou sem dor no peito" | abstém-se |
+| "não estou com meus documentos e tenho uma dor no peito", "não aguento essa dor no peito", "não sei o horário, mas estou com dor no peito" | urgência |
 
 `dor no peito`, `falta de ar`, `nao consigo respirar`, `dificuldade para respirar`, `desmai`, `sangramento`, `sangrando muito`, `convuls`, `avc`, `derrame`, `infarto`, `perdeu a consciencia`, `nao acorda`, `engasg`, `envenen`, `overdose`, `suicid`, `me matar`
 
