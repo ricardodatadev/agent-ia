@@ -114,6 +114,7 @@ docker compose up --build
 Abra **http://localhost:5173**. A API fica em http://localhost:8000 (`/docs` para o OpenAPI, `/health` para o status).
 
 - **Primeira subida:** baixa a imagem do Ollama (~9 GB) e os modelos (~3 GB), ingere os documentos e aquece os modelos. Leva alguns minutos; nas próximas, tudo vem do cache dos volumes.
+- **Tempo até ficar pronto:** o backend só vira `healthy` depois de aquecer os modelos em memória, o que em CPU leva de **2 a 10 minutos** (mais após um `docker compose down` ou de reiniciar o computador, porque os modelos são lidos do disco de novo). Acompanhe com `docker compose ps`. Se abrir o chat antes disso, use "Tentar novamente". Para mudanças só no backend, `docker compose up -d --build backend` mantém o Ollama aquecido e leva cerca de 1 minuto.
 - **Configuração opcional:** `cp .env.example .env` para trocar modelo, `TOP_K`, limiares etc. Sem `.env`, valem os padrões.
 - **Portas usadas:** 5173, 8000, 6333 e 11434 (pare um Ollama local antes de subir).
 - **Modo demonstração:** por padrão, cada resposta mostra a rota do grafo e a nota de relevância (útil para entender o fluxo). Para uma interface com cara de produto (só texto, selos e fontes), use `SHOW_DEBUG=false` no `.env` e reconstrua o frontend: `docker compose up -d --build frontend`.

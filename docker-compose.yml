@@ -76,7 +76,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 6
-      start_period: 300s # 1ª subida em CPU: ingestão (~1 min) + aquecimento dos modelos e prompts (~2-3 min)
+      start_period: 600s # em CPU, ler os modelos do disco no aquecimento leva de 2 a 10 min (mais após um `down`)
     restart: unless-stopped
 
   frontend:
