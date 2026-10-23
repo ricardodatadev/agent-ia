@@ -5,6 +5,7 @@ interface em `jev.py`; o grafo só conhece `Judge`.
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from typing import Literal, Protocol, TypeVar, runtime_checkable
@@ -25,6 +26,8 @@ from app.prompts import (
 )
 from app.rag import SECTION_SEPARATOR
 from app.text import normalize, words
+
+logger = logging.getLogger(__name__)
 
 # Noul
 NOUL_ATTEMPTS = 2  # 1 nova tentativa; persistindo, bloqueia como INDETERMINADO (falha segura)
@@ -165,13 +168,25 @@ class LLMJudge:
     def __init__(self, model: BaseChatModel) -> None:
         self.model = model
 
-    def _ask(self, system: str, user: str) -> str:
-        return message_text(self.model.invoke([SystemMessage(system), HumanMessage(user)]))
+    def _ask(self, decision: str, system: str, user: str) -> str:
+        message = self.model.invoke([SystemMessage(system), HumanMessage(user)])
+        usage = getattr(message, "usage_metadata", None) or {}
+        # LGPD: só metadados da decisão (como o `jev_answer`) — nunca o prompt nem a resposta
+        logger.info(
+            "llm_answer",
+            extra={
+                "decision": decision,
+                "llm_model": getattr(self.model, "model", None),
+                "input_tokens": usage.get("input_tokens"),
+                "output_tokens": usage.get("output_tokens"),
+            },
+        )
+        return message_text(message)
 
     def noul(self, message: str) -> NoulResult:
         """Motivo do bloqueio (None = aprovada). Inválida 2x, ou bloqueio sem motivo → INDETERMINADO."""
         for attempt in range(1, NOUL_ATTEMPTS + 1):
-            verdict = parse_verdict(self._ask(NOUL_SYSTEM, noul_user_prompt(message)), NoulVerdict)
+            verdict = parse_verdict(self._ask("noul", NOUL_SYSTEM, noul_user_prompt(message)), NoulVerdict)
             if verdict:
                 if not verdict.bloquear:
                     return NoulResult(None, None, attempt)
@@ -182,14 +197,14 @@ class LLMJudge:
         """Intenção da mensagem. Inválida → 1 nova tentativa; persistindo → CONSULTA_RAG."""
         prompt = choice_user_prompt(message, recent_history(history))
         for attempt in range(1, CHOICE_ATTEMPTS + 1):
-            verdict = parse_verdict(self._ask(CHOICE_SYSTEM, prompt), ChoiceVerdict)
+            verdict = parse_verdict(self._ask("choice", CHOICE_SYSTEM, prompt), ChoiceVerdict)
             if verdict:
                 return verdict.intencao, attempt
         return DEFAULT_INTENT, CHOICE_ATTEMPTS
 
     def score(self, question: str, chunks: list[RetrievedChunk]) -> tuple[int, int]:
         """Relevância 1–5 do contexto. Saída inválida → 1 (falha segura)."""
-        verdict = parse_verdict(self._ask(SCORE_SYSTEM, score_user_prompt(question, chunks)), ScoreVerdict)
+        verdict = parse_verdict(self._ask("score", SCORE_SYSTEM, score_user_prompt(question, chunks)), ScoreVerdict)
         if verdict is None:
             return FAIL_SAFE_SCORE, 1
         return anchored_score(verdict, chunks, question), 1

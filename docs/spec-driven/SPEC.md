@@ -286,7 +286,7 @@ class ToolResult(BaseModel):
 | RNF03 | Privacidade (LGPD) | Sem persistência de conversas no servidor; logs não contêm texto de mensagens bloqueadas por PII; nenhum dado enviado a serviços externos (LLM local). | Revisão de código + AC-RF02-5. |
 | RNF04 | Segurança | Validação de entrada na API: `message` 1–1000 caracteres; histórico ≤ 6 itens; CORS restrito a `CORS_ORIGINS`. Tools só executam com args válidos. | Testes de contrato da API. |
 | RNF05 | Confiabilidade | Timeout de 120 s por chamada ao LLM em CPU (`LLM_TIMEOUT_S`; 30 s bastam com GPU) e modelos mantidos em memória (`OLLAMA_KEEP_ALIVE=-1`); falha de LLM/Qdrant retorna `503` com mensagem amigável, sem stack trace. | Testes de falha com dependências simuladas. |
-| RNF06 | Observabilidade | Log estruturado (JSON) por requisição: `request_id`, rota, motivo de bloqueio, score, tool, latência por nó, nº de chamadas ao LLM. | Inspeção de logs. |
+| RNF06 | Observabilidade | Log estruturado (JSON) por requisição: `request_id`, rota, motivo de bloqueio, score, tool, latência por nó, nº de chamadas ao LLM. **Por decisão (T-27):** um evento por chamada ao motor de decisões — `llm_answer` (modo local) ou `jev_answer` (Jev) — com a decisão, o modelo e os tokens de entrada e saída, **nunca o texto**. | Inspeção de logs; `run_eval.py` soma os tokens por decisão e por motor, para comparar Jev × modo local. |
 | RNF07 | Manutenibilidade | Perguntas do Jev em `backend/jevs/*.json` e prompts do modo local em `prompts.py`; domínio (textos padrão, especialidades, documentos) separado da mecânica do grafo, permitindo trocar de nicho alterando `data/` + prompts. | Revisão. |
 | RNF08 | Qualidade | Tipagem com Pydantic nos contratos; `pytest` sem dependência de Ollama/Qdrant para testes unitários. | CI local / `pytest`. |
 | RNF09 | Integração contínua | GitHub Actions (`.github/workflows/ci.yml`) a cada push na `main` e em PRs: `pytest` do backend (Python 3.12, sem Docker) e typecheck + build do frontend (Node 22). | Selo do CI no README; simulação local em `python:3.12-slim` e `node:22-alpine`. |
@@ -449,8 +449,9 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-14 | Dataset de avaliação + runner; registrar resultados no README | AC-RF02-10, AC-RF02-13 | T-13 | ☑ |
 | T-15 | README: arquitetura, decisões, como rodar, como trocar de nicho, resultados da avaliação | — | T-12, T-14 | ☑ |
 | T-26 | Robustez da urgência e da PII: pergunta `urgencia` no Jev, regra de termos como plano B com trava de negação, PII com espaços e por extenso | AC-RF02-14..16, AC-RF06-5, AC-RF06-8..9 | T-23 | ☑ |
+| T-27 | Tokens por decisão: evento `llm_answer` no `LLMJudge` e soma por decisão e por motor no `run_eval.py` | RNF06 | T-26 | ☑ |
 
-> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) e [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII).
+> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII) e [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão).
 
 **Definition of Done (por tarefa):** código tipado; ACs vinculados cobertos por teste ou verificação manual registrada no PR/commit; `pytest` passando; sem segredos no código; spec atualizada se o comportamento mudou.
 

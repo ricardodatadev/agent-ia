@@ -9,6 +9,7 @@ Resultados em tests/eval/results/ (ignorado pelo git) e tabela Markdown no termi
 
 import argparse
 import json
+import logging
 import statistics
 import sys
 import time
@@ -29,7 +30,33 @@ def load_dataset(path: Path = DATASET) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def run_case(graph: Any, case: dict[str, Any]) -> dict[str, Any]:
+class TokenCollector(logging.Handler):
+    """Soma, por decisão, os tokens dos eventos `llm_answer` (modo local) e `jev_answer` (Jev).
+
+    Lê só metadados do log (decisão e contagem de tokens), nunca o texto das mensagens.
+    """
+
+    EVENTS = frozenset({"llm_answer", "jev_answer"})
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.INFO)
+        self.by_decision: dict[str, dict[str, int]] = {}
+
+    def reset(self) -> None:
+        self.by_decision = {}
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.getMessage() not in self.EVENTS:
+            return
+        entry = self.by_decision.setdefault(getattr(record, "decision", "?"), {"calls": 0, "input": 0, "output": 0})
+        entry["calls"] += 1
+        entry["input"] += getattr(record, "input_tokens", None) or 0
+        entry["output"] += getattr(record, "output_tokens", None) or 0
+
+
+def run_case(graph: Any, case: dict[str, Any], collector: TokenCollector | None = None) -> dict[str, Any]:
+    if collector:
+        collector.reset()
     start = time.perf_counter()
     state = graph.invoke(
         {"request_id": uuid.uuid4().hex, "message": case["message"], "history": [], "llm_calls": 0, "timings_ms": {}}
@@ -48,6 +75,7 @@ def run_case(graph: Any, case: dict[str, Any]) -> dict[str, Any]:
         "llm_calls": state.get("llm_calls", 0),
         "timings_ms": state.get("timings_ms", {}),
         "total_s": round(time.perf_counter() - start, 1),
+        "decision_tokens": {d: dict(t) for d, t in collector.by_decision.items()} if collector else {},
         "reply": state["reply"],
     }
 
@@ -120,6 +148,22 @@ def compute_metrics(cases: list[dict[str, Any]], results: list[dict[str, Any]]) 
             f"{node} {statistics.mean(v):.1f} s" for node, v in sorted(node_times.items()) if statistics.mean(v) >= 0.05
         ),
     }
+
+    tokens: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "input": 0, "output": 0})
+    for _, r in pairs:
+        for decision, t in (r.get("decision_tokens") or {}).items():
+            for key in ("calls", "input", "output"):
+                tokens[decision][key] += t.get(key, 0)
+    if tokens:
+        total_in = sum(t["input"] for t in tokens.values())
+        total_out = sum(t["output"] for t in tokens.values())
+        metrics["Tokens por decisão (média por chamada)"] = ", ".join(
+            f"{d} {t['input'] / t['calls']:.0f} entrada / {t['output'] / t['calls']:.0f} saída"
+            for d, t in sorted(tokens.items())
+            if t["calls"]
+        )
+        metrics["Tokens das decisões (média por mensagem)"] = f"{total_in / len(pairs):.0f} entrada / {total_out / len(pairs):.0f} saída"
+        metrics["Tokens das decisões (total)"] = f"{total_in} entrada / {total_out} saída em {sum(t['calls'] for t in tokens.values())} chamadas"
     return metrics, divergences
 
 
@@ -145,10 +189,15 @@ def main(argv: list[str] | None = None) -> int:
         cases = [c for c in cases if c["id"] in wanted]
 
     settings = get_settings()
-    graph = build_graph(build_deps(settings))
+    deps = build_deps(settings)
+    graph = build_graph(deps)
+    collector = TokenCollector()
+    for name in ("app.judge", "app.jev"):
+        logging.getLogger(name).addHandler(collector)
+        logging.getLogger(name).setLevel(logging.INFO)
     results = []
     for i, case in enumerate(cases, start=1):
-        result = run_case(graph, case)
+        result = run_case(graph, case, collector)
         results.append(result)
         print(f"[{i:02d}/{len(cases)}] {case['id']:<7} {result['route']:<18} {result['total_s']:6.1f}s", flush=True)
 
@@ -157,13 +206,13 @@ def main(argv: list[str] | None = None) -> int:
     out = RESULTS_DIR / f"{args.label}-{datetime.now():%Y%m%d-%H%M%S}.json"
     out.write_text(
         json.dumps(
-            {"label": args.label, "model": settings.llm_model, "top_k": settings.top_k,
+            {"label": args.label, "model": settings.llm_model, "engine": deps.judge.layer, "top_k": settings.top_k,
              "metrics": metrics, "divergences": divergences, "results": results},
             ensure_ascii=False, indent=2,
         ),
         encoding="utf-8",
     )
-    print(f"\nModelo: {settings.llm_model} · top_k={settings.top_k} · {len(cases)} casos\n")
+    print(f"\nModelo: {settings.llm_model} · motor das decisões: {deps.judge.layer} · top_k={settings.top_k} · {len(cases)} casos\n")
     print(to_markdown(metrics))
     print("\nDivergências:" if divergences else "\nSem divergências.")
     for d in divergences:
