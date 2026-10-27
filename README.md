@@ -22,7 +22,7 @@ Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **r
 - **Informação de saúde sem diagnóstico:** perguntas gerais sobre dengue, gripe, hipertensão e diabetes são respondidas com resumos do Ministério da Saúde e terminam com um aviso fixo, escrito no código; quem relata o que sente, pergunta "será que é dengue?" ou pede um remédio é encaminhado à equipe.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
-- **Avaliação com LLM real** em 50 casos rotulados, **330 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
+- **Avaliação com LLM real** em 50 casos rotulados, **335 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
 
 ## Arquitetura
 
@@ -162,7 +162,7 @@ docker compose run --rm backend python scripts/ingest.py
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest                      # 330 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
+pytest                      # 335 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
 pytest -m integration       # contra a stack real: Qdrant + bge-m3 + API no ar
 python tests/eval/run_eval.py   # avaliação com o LLM real nos 50 casos de tests/eval/dataset.jsonl
                                 # também soma os tokens gastos em cada decisão (Noul, Choice, Score), no Llama ou no Jev,
@@ -229,8 +229,8 @@ A mecânica (grafo, decisões, guardrails, API, UI) é independente do domínio.
 - **Informações gerais de saúde:** cobrem só 4 doenças (dengue, gripe, hipertensão e diabetes), e o `dataset_saude.jsonl` (14 casos) ainda não foi medido com o LLM real. O aviso fixo e o encaminhamento de quem pede diagnóstico não dependem do modelo, mas a fronteira entre "pergunta geral" e "relato de sintoma" é decidida pelo Choice.
 - **Jev ainda não avaliado com o dataset:** a integração está testada pelo SDK real com rede simulada (contrato, decisões, erros, LGPD), mas a chamada real e as métricas com o Jev dependem de chave (lista de espera).
 - **Busca:** sem re-ranking nem busca híbrida (ADR-05); a avaliação não mostrou necessidade.
-- **Escopo:** sem agendamento real, autenticação ou persistência de conversas (por decisão, LGPD).
-- **Próximos passos:** streaming das respostas, suporte a PDF na ingestão, métricas no Prometheus.
+- **Escopo:** sem agendamento real, autenticação ou persistência de conversas (por decisão, LGPD). Agendamento e encaminhamento geram um protocolo que o paciente leva à recepção; o assistente não promete retorno, porque ninguém consegue entrar na conversa.
+- **Próximos passos:** transferência ao vivo para um atendente (fila, painel e mensagens em tempo real; as respostas com "aguarde" já estão prontas atrás de `HANDOFF_LIVE=true`), streaming das respostas, suporte a PDF na ingestão, métricas no Prometheus.
 
 ---
 

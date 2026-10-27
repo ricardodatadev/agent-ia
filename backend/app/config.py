@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     score_threshold: int = Field(default=3, ge=1, le=5)
     auto_ingest: bool = True
 
+    # Encaminhamento: true só quando existir transferência ao vivo para um atendente (fila + painel)
+    handoff_live: bool = False
+
     # API
     cors_origins: str = "http://localhost:5173"
 

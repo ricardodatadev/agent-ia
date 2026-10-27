@@ -197,12 +197,15 @@ class ToolResult(BaseModel):
 - Respostas das tools usam templates fixos (sem geração adicional): rota de tool = NOUL + CHOICE + extração = até 3 chamadas ao LLM.
 - Mocks são funções puras/determinísticas (exceto o protocolo), sem I/O externo, retornando `sucesso = true`.
 - [PREMISSA] As especialidades disponíveis ficam numa constante em `tools.py`; não há agenda real.
+- **Próximo passo do paciente (T-29):** as respostas só prometem o que o sistema faz. Não há fila, painel do atendente nem mensagens em tempo real, então, com `HANDOFF_LIVE=false` (padrão), agendamento e encaminhamento orientam a **procurar a recepção ou ligar para a unidade informando o protocolo**, e nenhuma resposta diz que alguém vai entrar em contato ou retornar. Com `HANDOFF_LIVE=true`, reservado para quando a transferência ao vivo existir, a resposta diz "aguarde, alguém vai atender você aqui". **Urgência, nos dois modos:** a resposta começa pelo aviso do 192 e nunca pede para aguardar.
 
 **Critérios de aceite:**
 - **AC-RF03-1** — *Given* "quero marcar com um cardiologista", *Then* `tool_call.name = "agendar_consulta_especialista"`, `tool_call.args.especialidade = "cardiologia"`, `tool_call.result.sucesso = true` e a resposta contém o protocolo.
 - **AC-RF03-2** — *Given* "quero marcar uma consulta" (sem especialidade), *Then* nenhuma tool é executada e a resposta pede a especialidade listando as opções.
 - **AC-RF03-3** — *Given* "quero marcar com um neurocirurgião" (não disponível), *Then* nenhuma tool é executada e a resposta informa as especialidades disponíveis.
 - **AC-RF03-4** — *Given* rota `ATENDIMENTO_HUMANO`, *Then* `tool_call.name = "encaminhar_atendente_humano"` com `motivo` preenchido e `urgente = true` para sintomas de urgência.
+- **AC-RF03-5** — *Given* `HANDOFF_LIVE=false`, *When* uma consulta é solicitada ou um encaminhamento é feito, *Then* a resposta orienta levar o protocolo à recepção e não contém "entrar em contato", "retornar" nem "aguarde"; com `HANDOFF_LIVE=true`, contém "Aguarde".
+- **AC-RF03-6** — *Given* um encaminhamento com `urgente = true`, em qualquer modo, *Then* a resposta começa pelo aviso do 192 e não pede para aguardar.
 
 ---
 
@@ -477,8 +480,9 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-26 | Robustez da urgência e da PII: pergunta `urgencia` no Jev, regra de termos como plano B com trava de negação, PII com espaços e por extenso | AC-RF02-14..16, AC-RF06-5, AC-RF06-8..9 | T-23 | ☑ |
 | T-27 | Tokens por decisão: evento `llm_answer` no `LLMJudge` e soma por decisão e por motor no `run_eval.py` | RNF06 | T-26 | ☑ |
 | T-28 | Informações gerais de saúde: resumos do Ministério da Saúde no RAG, Choice e geração sem diagnóstico nem remédio, aviso fixo, ingestão que completa a coleção | AC-RF07-1..6 | T-27 | ☑ |
+| T-29 | Respostas de agendamento e encaminhamento sem promessa de contato: protocolo levado à recepção, "aguarde" reservado para `HANDOFF_LIVE=true`, urgência com 192 primeiro | AC-RF03-5..6 | T-28 | ☑ |
 
-> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) e [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde).
+> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde) e [15-respostas-encaminhamento.md](checklists/15-respostas-encaminhamento.md) (T-29, respostas sem promessa de contato).
 
 **Definition of Done (por tarefa):** código tipado; ACs vinculados cobertos por teste ou verificação manual registrada no PR/commit; `pytest` passando; sem segredos no código; spec atualizada se o comportamento mudou.
 
@@ -522,7 +526,7 @@ Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robus
 | RF02.1 | AC-RF02-1..5 | T-08 | unit/test_pii_regex, integration/test_graph_bloqueio |
 | RF02.2 | AC-RF02-6..10 | T-07 | unit/test_routing, eval |
 | RF02.3 | AC-RF02-11..13 | T-05, T-06 | integration/test_graph_rag, eval |
-| RF03 | AC-RF03-1..4 | T-09 | unit/test_tools, integration/test_graph_tools |
+| RF03 | AC-RF03-1..6 | T-09, T-29 | unit/test_tools, unit/test_handoff_replies, integration/test_graph_tools |
 | RF04 | AC-RF04-1..5 | T-11, T-19 | verificação manual (checklist no PR) |
 | RF05 | AC-RF05-1..2 | T-02, T-12 | verificação manual |
 | RF06 | AC-RF06-1..7 | T-22, T-23, T-24 | unit/test_jev_questions, unit/test_llm, integration/test_jev_judge, eval (Jev × modo local) |

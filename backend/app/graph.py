@@ -70,6 +70,7 @@ class GraphDeps:
     judge: Judge
     top_k: int = 3
     score_threshold: int = 3
+    handoff_live: bool = False  # T-29: "aguarde" só com transferência ao vivo implementada
 
 
 Node = Callable[[GraphState], dict[str, Any]]
@@ -159,7 +160,9 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
 
         valid = AgendarConsultaArgs(especialidade=especialidade)  # validação antes da execução
         result = agendar_consulta_especialista(valid)
-        reply = schedule_confirmed_reply(ESPECIALIDADES[especialidade], result.protocolo, especialidade in NEEDS_REFERRAL)
+        reply = schedule_confirmed_reply(
+            ESPECIALIDADES[especialidade], result.protocolo, especialidade in NEEDS_REFERRAL, deps.handoff_live
+        )
         tool_call = ToolCallInfo(name=TOOL_AGENDAR, args=valid.model_dump(), result=result)
         return {**update, "reply": reply, "tool_call": tool_call}
 
@@ -177,7 +180,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
             except (ValidationError, TypeError):  # motivo inválido não impede o encaminhamento
                 valid = EncaminharAtendenteArgs(motivo=fallback_motivo, urgente=bool(args.get("urgente") is True))
         result = encaminhar_atendente_humano(valid)
-        reply = handoff_reply(result.protocolo, valid.urgente)
+        reply = handoff_reply(result.protocolo, valid.urgente, deps.handoff_live)
         if mentions_suicide(message):
             reply = f"{reply} {CVV_NOTICE}"
         tool_call = ToolCallInfo(name=TOOL_ATENDENTE, args=valid.model_dump(), result=result)

@@ -89,6 +89,7 @@ def build_deps(settings: Settings) -> GraphDeps:
         judge=build_judge(settings),
         top_k=settings.top_k,
         score_threshold=settings.score_threshold,
+        handoff_live=settings.handoff_live,
     )
 
 

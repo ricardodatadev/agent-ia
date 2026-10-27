@@ -169,7 +169,20 @@ def especialidades_list(labels: list[str]) -> str:
     return ", ".join(labels[:-1]) + f" e {labels[-1]}"
 
 
-def schedule_confirmed_reply(label: str, protocolo: str, needs_referral: bool) -> str:
+# Transferência ao vivo (HANDOFF_LIVE, T-29): só prometa "aguarde" quando houver fila e atendente no chat.
+# Sem ela, o paciente recebe uma instrução que consegue cumprir sozinho: levar o protocolo à UBS.
+SCHEDULE_NEXT_STEP = {
+    False: "Para confirmar a data e o horário, procure a recepção da UBS ou ligue para a unidade informando esse protocolo.",
+    True: "Aguarde: alguém da recepção vai atender você aqui para confirmar a data e o horário.",
+}
+
+HANDOFF_NEXT_STEP = {
+    False: "Procure a recepção presencialmente ou ligue para a unidade informando esse protocolo.",
+    True: "Aguarde: alguém da equipe da UBS vai atender você aqui.",
+}
+
+
+def schedule_confirmed_reply(label: str, protocolo: str, needs_referral: bool, live: bool = False) -> str:
     referral = (
         f" A primeira consulta de {label.lower()} passa antes por uma avaliação do clínico geral, "
         "que faz o encaminhamento interno."
@@ -177,8 +190,8 @@ def schedule_confirmed_reply(label: str, protocolo: str, needs_referral: bool) -
         else ""
     )
     return (
-        f"Pronto! Sua solicitação de consulta de {label.lower()} foi registrada com o protocolo {protocolo}."
-        f"{referral} A recepção vai entrar em contato para confirmar data e horário. "
+        f"Sua solicitação de consulta de {label.lower()} foi registrada com o protocolo {protocolo}."
+        f"{referral} {SCHEDULE_NEXT_STEP[live]} "
         "No dia, chegue 15 minutos antes com documento com foto e Cartão SUS."
     )
 
@@ -195,15 +208,15 @@ def schedule_unavailable_reply(labels: list[str]) -> str:
     )
 
 
-def handoff_reply(protocolo: str, urgent: bool) -> str:
-    if urgent:
+def handoff_reply(protocolo: str, urgent: bool, live: bool = False) -> str:
+    if urgent:  # o 192 vem primeiro e nunca há "aguarde": urgência não espera no chat
         return (
-            f"Encaminhei seu caso com prioridade para a equipe de enfermagem da UBS (protocolo {protocolo}). "
-            f"{EMERGENCY_NOTICE}"
+            f"{EMERGENCY_NOTICE} Registrei seu caso como prioridade (protocolo {protocolo}); "
+            "ao chegar à UBS, informe esse protocolo à enfermagem."
         )
     return (
-        f"Encaminhei sua solicitação para a equipe de atendimento da UBS (protocolo {protocolo}). "
-        f"Alguém vai retornar em breve. Em caso de emergência, ligue 192 (SAMU)."
+        f"Registrei sua solicitação para a equipe de atendimento da UBS (protocolo {protocolo}). "
+        f"{HANDOFF_NEXT_STEP[live]} Em caso de emergência, ligue 192 (SAMU)."
     )
 
 

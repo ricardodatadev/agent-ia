@@ -31,6 +31,7 @@
 | 12 (pós-v1) | [12-robustez-decisoes.md](12-robustez-decisoes.md) | T-26 | T-23 | ◐ código e testes feitos (312 passed); pendentes: medição com o LLM real/Jev e CI simulado |
 | 13 (pós-v1) | [13-tokens-por-decisao.md](13-tokens-por-decisao.md) | T-27 | T-26 | ◐ registro e soma de tokens feitos (319 passed); pendentes: avaliação completa com o Llama e comparação com o Jev (requer chave) |
 | 14 (pós-v1) | [14-informacoes-saude.md](14-informacoes-saude.md) | T-28 | T-27 | ◐ documentos, prompts, aviso fixo e ingestão feitos (330 passed); pendente: avaliação com o Llama real (`dataset_saude.jsonl` e regressão do `dataset.jsonl`) |
+| 15 (pós-v1) | [15-respostas-encaminhamento.md](15-respostas-encaminhamento.md) | T-29 | T-28 | ☑ textos e testes feitos (335 passed) |
 
 > A Fase 6 (frontend) pode ser feita em paralelo às Fases 2–5, usando o contrato de `POST /chat` da SPEC §5.3.
 
@@ -48,7 +49,7 @@
 | RF02.1 (NOUL) | AC-RF02-1..5 | 3 |
 | RF02.2 (CHOICE) | AC-RF02-6..10 | 3, 8 |
 | RF02.3 (SCORE) | AC-RF02-11..13 | 2, 8 |
-| RF03 | AC-RF03-1..4 | 4 |
+| RF03 | AC-RF03-1..6 | 4, 15 |
 | RF04 | AC-RF04-1..4 | 6 |
 | RF05 | AC-RF05-1..2 | 1, 7 |
 | RF07 | AC-RF07-1..6 | 14 |
