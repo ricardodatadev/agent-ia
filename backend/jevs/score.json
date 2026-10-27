@@ -1,7 +1,7 @@
 {
   "relevancia": {
     "type": "score",
-    "instructions": "Os trechos, recuperados dos documentos da UBS, contêm a informação necessária para responder à pergunta do paciente? Leia todos os trechos até o fim: a resposta pode estar no meio ou no final de um trecho.",
+    "instructions": "Os trechos, recuperados dos documentos da UBS e das informações gerais do Ministério da Saúde, contêm a informação necessária para responder à pergunta do paciente? Leia todos os trechos até o fim: a resposta pode estar no meio ou no final de um trecho.",
     "criteria": [
       "Os trechos não têm relação com a pergunta.",
       "Os trechos são do mesmo assunto, mas não contêm a resposta.",

@@ -80,9 +80,18 @@ def test_busca_retorna_chunk_relevante(store: VectorStore) -> None:
     assert results[0].similarity >= results[-1].similarity
 
 
-def test_ensure_ingested_so_ingere_colecao_vazia(store: VectorStore) -> None:
+def test_ensure_ingested_nao_reingere_colecao_completa(store: VectorStore) -> None:
     assert store.ensure_ingested(DATA_DIR) is not None
     assert store.ensure_ingested(DATA_DIR) is None
+
+
+def test_ensure_ingested_completa_colecao_com_documento_novo(store: VectorStore, tmp_path: Path) -> None:  # AC-RF07-6
+    (tmp_path / "funcionamento.md").write_text("# Horário\n\nA UBS funciona das 7h às 19h.", encoding="utf-8")
+    assert store.ensure_ingested(tmp_path) is not None
+    (tmp_path / "saude-dengue.md").write_text("# Dengue\n\nFebre alta e repentina.", encoding="utf-8")
+    assert store.ensure_ingested(tmp_path) is not None  # volume antigo recebe o documento novo
+    assert sources(store) == {"funcionamento.md", "saude-dengue.md"}
+    assert store.ensure_ingested(tmp_path) is None
 
 
 def test_qdrant_indisponivel_vira_erro_de_dependencia() -> None:

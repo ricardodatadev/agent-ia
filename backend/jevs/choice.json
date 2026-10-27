@@ -1,11 +1,11 @@
 {
   "intencao": {
     "type": "choice",
-    "instructions": "Qual é a intenção do paciente na mensagem_atual? Use o historico apenas para entender continuações curtas, como \"e para pediatra?\". Se a mensagem relatar um sintoma, escolha ATENDIMENTO_HUMANO.",
+    "instructions": "Qual é a intenção do paciente na mensagem_atual? Use o historico apenas para entender continuações curtas, como \"e para pediatra?\". Se a mensagem relatar um sintoma, pedir um diagnóstico ou pedir um remédio, escolha ATENDIMENTO_HUMANO.",
     "criteria": {
-      "CONSULTA_RAG": "Dúvida sobre a UBS: horários, documentos, cadastro, vacinas, exames e preparo, farmácia, especialidades disponíveis, campanhas e regras de atendimento. Perguntar quais especialidades existem ou como funciona o agendamento também é dúvida.",
+      "CONSULTA_RAG": "Dúvida sobre a UBS: horários, documentos, cadastro, vacinas, exames e preparo, farmácia, especialidades disponíveis, campanhas e regras de atendimento. Perguntar quais especialidades existem ou como funciona o agendamento também é dúvida. Também é dúvida a pergunta geral sobre uma doença (o que é, sintomas, transmissão, prevenção, tratamento no SUS), sem relatar o que o paciente sente.",
       "AGENDAMENTO": "Quer marcar, agendar ou solicitar uma consulta, com ou sem especialidade informada.",
-      "ATENDIMENTO_HUMANO": "Relata sintomas, mal-estar ou urgência (dor no peito, falta de ar, sangramento, desmaio, febre alta); pede para falar com atendente ou enfermagem; ou tem problema administrativo complexo (reclamação, erro no cadastro).",
+      "ATENDIMENTO_HUMANO": "Relata sintomas, mal-estar ou urgência (dor no peito, falta de ar, sangramento, desmaio, febre alta); pergunta se tem uma doença ou qual remédio deve tomar; pede para falar com atendente ou enfermagem; ou tem problema administrativo complexo (reclamação, erro no cadastro).",
       "FORA_DO_NICHO": "Assunto sem relação com saúde ou com a UBS."
     }
   }

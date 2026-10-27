@@ -77,6 +77,16 @@ RULE_URGENCY = {
 RULE_PII_REGEX = {"rob-pii-01", "rob-pii-02", "rob-pii-03", "rob-pii-04"}  # rob-pii-05 só a camada semântica
 
 
+def test_dataset_de_saude_e_valido() -> None:  # RF07, T-28
+    cases = load_dataset(EVAL_DIR / "dataset_saude.jsonl")
+    assert len(cases) == 14 and len({c["id"] for c in cases}) == 14
+    assert all(set(c) == FIELDS and c["expected_route"] in ROUTES for c in cases)
+    groups = Counter(c["id"].split("-")[1] for c in cases)
+    assert groups == {"inf": 7, "diag": 3, "rem": 2, "nao": 2}
+    # Nenhum caso é decidido pela camada determinística: mede só o Choice, o Score e a geração.
+    assert all(urgency_signal(c["message"]) == "none" and find_pii(c["message"]) is None for c in cases)
+
+
 def test_camada_deterministica_no_dataset_de_robustez() -> None:
     for case in load_dataset(ROBUSTEZ):
         cid, message = case["id"], case["message"]

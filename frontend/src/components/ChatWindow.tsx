@@ -6,7 +6,7 @@ const SUGGESTIONS = [
   "Qual o horário da vacina da gripe?",
   "Preciso de jejum para exame de sangue?",
   "Quero marcar com um cardiologista",
-  "Quais documentos levo na consulta?",
+  "Quais são os sintomas da dengue?",
 ];
 
 interface Props {

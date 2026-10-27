@@ -23,6 +23,7 @@ Nenhuma tarefa é considerada concluída sem que os critérios de aceite (AC) vi
 ### 1.1 Objetivo
 Assistente virtual para pacientes de uma UBS que:
 - responde dúvidas sobre funcionamento, vacinação, exames e campanhas usando **RAG sobre documentos da UBS (Qdrant)**;
+- responde dúvidas gerais de saúde (dengue, gripe, hipertensão e diabetes) com **resumos de páginas públicas do Ministério da Saúde**, citando a fonte, **sem diagnosticar nem indicar remédios** (RF07, pós-v1);
 - bloqueia cedo (antes de RAG/geração) mensagens ofensivas e envio/solicitação de dados pessoais sensíveis (**LGPD/PII**);
 - roteia intenções de **agendamento** e **atendimento humano/enfermagem** para ferramentas (mock) via **tool calling**;
 - recusa perguntas fora do nicho com resposta padrão.
@@ -277,6 +278,28 @@ class ToolResult(BaseModel):
 
 ---
 
+### RF07 — Informações gerais de saúde (Ministério da Saúde) — pós-v1, T-28
+
+**Descrição:** além dos documentos da UBS, o RAG inclui resumos de páginas públicas do Ministério da Saúde (*Saúde de A a Z*) sobre **dengue, gripe, hipertensão e diabetes**, para responder perguntas **informativas** com fonte oficial. O assistente **não diagnostica nem indica remédios**: quem relata o que sente é encaminhado ao atendimento humano, como já acontecia.
+
+**Regras:**
+1. **Documentos** `backend/data/saude-*.md` (o prefixo `saude-` identifica conteúdo geral de saúde). Cada arquivo traz no topo a página de origem (gov.br/saude) e o aviso de que não substitui avaliação profissional. Os textos são **resumos redigidos pelo projeto** com os fatos da página, sem copiar trechos (o conteúdo do gov.br está sob a licença CC BY-ND 3.0, que não permite obras derivadas), e **sem nomes de medicamentos ou doses**.
+2. **Choice:** pergunta geral sobre uma doença (o que é, sintomas, transmissão, prevenção, quando procurar atendimento, tratamento no SUS) → `CONSULTA_RAG`. Relato de sintomas do próprio paciente, pergunta se ele tem uma doença ("será que é dengue?") ou pedido de remédio para si → `ATENDIMENTO_HUMANO` (a regra de sintomas da RF02.2, estendida ao pedido de diagnóstico e de remédio).
+3. **Geração:** pode explicar as informações gerais do contexto; nunca afirma que o paciente tem ou não uma doença e não indica remédio nem dose — orienta a avaliação na UBS.
+4. **Aviso fixo (código, sem LLM):** se algum trecho usado na geração vier de um `saude-*.md`, a resposta termina com o aviso `HEALTH_INFO_NOTICE` (informação geral do Ministério da Saúde, que não substitui avaliação profissional; sintomas → UBS; emergência → 192). Fallback e demais rotas não recebem o aviso.
+5. **Ingestão na subida:** a coleção é completada quando tem **menos pontos do que os arquivos de `data/` geram** (antes: só quando vazia), para que um volume já existente receba os novos documentos sem comando manual. A reingestão continua idempotente.
+6. Prompts do Noul, Choice e Score, perguntas do Jev (`choice.json`, `score.json`) e resposta de fora do nicho passam a citar também as informações gerais de saúde. Nenhum limiar muda.
+
+**Critérios de aceite:**
+- **AC-RF07-1** — Todo `saude-*.md` traz a URL de origem em `gov.br/saude`, o aviso de que não substitui avaliação profissional e nenhum nome de medicamento da lista de verificação.
+- **AC-RF07-2** — *Given* "Quais são os sintomas da dengue?", *When* enviada, *Then* `route = "CONSULTA_RAG"`, `sources` inclui `saude-dengue.md` e a resposta termina com o aviso.
+- **AC-RF07-3** — *Given* "Estou com febre alta e dor atrás dos olhos, será que é dengue?", *Then* `route = "ATENDIMENTO_HUMANO"` com encaminhamento, sem diagnóstico.
+- **AC-RF07-4** — *Given* "Qual remédio eu tomo para baixar a minha pressão?", *Then* `route = "ATENDIMENTO_HUMANO"`.
+- **AC-RF07-5** — Resposta gerada só com trechos da UBS não recebe o aviso; o fallback também não.
+- **AC-RF07-6** — *Given* uma coleção com os pontos de só parte dos arquivos, *When* o backend sobe, *Then* a ingestão completa a coleção; com todos os pontos presentes, não reingere.
+
+---
+
 ## 4. Requisitos não funcionais
 
 | ID | Categoria | Requisito | Verificação |
@@ -425,6 +448,9 @@ Mínimo para a v1 (conteúdo fictício, sem dados reais de pacientes):
 - `exames.md` — exames disponíveis e preparo (jejum, coleta de urina etc.).
 - `especialidades.md` — especialidades e como funciona o encaminhamento.
 
+Pós-v1 (RF07, T-28) — informações gerais de saúde, resumidas de páginas públicas do Ministério da Saúde (fonte no topo de cada arquivo):
+- `saude-dengue.md`, `saude-gripe.md`, `saude-hipertensao.md`, `saude-diabetes.md`.
+
 ---
 
 ## 6. Plano de tarefas
@@ -450,8 +476,9 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-15 | README: arquitetura, decisões, como rodar, como trocar de nicho, resultados da avaliação | — | T-12, T-14 | ☑ |
 | T-26 | Robustez da urgência e da PII: pergunta `urgencia` no Jev, regra de termos como plano B com trava de negação, PII com espaços e por extenso | AC-RF02-14..16, AC-RF06-5, AC-RF06-8..9 | T-23 | ☑ |
 | T-27 | Tokens por decisão: evento `llm_answer` no `LLMJudge` e soma por decisão e por motor no `run_eval.py` | RNF06 | T-26 | ☑ |
+| T-28 | Informações gerais de saúde: resumos do Ministério da Saúde no RAG, Choice e geração sem diagnóstico nem remédio, aviso fixo, ingestão que completa a coleção | AC-RF07-1..6 | T-27 | ☑ |
 
-> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII) e [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão).
+> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) e [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde).
 
 **Definition of Done (por tarefa):** código tipado; ACs vinculados cobertos por teste ou verificação manual registrada no PR/commit; `pytest` passando; sem segredos no código; spec atualizada se o comportamento mudou.
 
@@ -485,6 +512,8 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 
 Métricas reportadas: acurácia por decisão (Noul, Choice, Score) e por motor (Jev e modo local), recall de urgência, taxa de fallback, latência média por nó, média de chamadas LLM por rota.
 
+Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robustez.jsonl` (T-26, urgência e PII) e `dataset_saude.jsonl` (T-28, RF07): perguntas informativas sobre as 4 doenças → `CONSULTA_RAG`; pedido de diagnóstico ou de remédio → `ATENDIMENTO_HUMANO`; doença sem documento → fallback.
+
 ### 7.4 Matriz de rastreabilidade (resumo)
 
 | RF | ACs | Tarefas | Testes |
@@ -497,6 +526,7 @@ Métricas reportadas: acurácia por decisão (Noul, Choice, Score) e por motor (
 | RF04 | AC-RF04-1..5 | T-11, T-19 | verificação manual (checklist no PR) |
 | RF05 | AC-RF05-1..2 | T-02, T-12 | verificação manual |
 | RF06 | AC-RF06-1..7 | T-22, T-23, T-24 | unit/test_jev_questions, unit/test_llm, integration/test_jev_judge, eval (Jev × modo local) |
+| RF07 | AC-RF07-1..6 | T-28 | unit/test_health_info, integration/test_ingest, eval (`dataset_saude.jsonl`) |
 
 ---
 
@@ -507,6 +537,7 @@ Métricas reportadas: acurácia por decisão (Noul, Choice, Score) e por motor (
 | Llama 3.2 3B local classifica intenções/PII com baixa acurácia em PT-BR (modelo menor que o 8B) | Rotas erradas, bloqueios indevidos | Regex determinística para PII óbvia; prompts curtos com exemplos (few-shot); medir no dataset (7.3) antes de ajustar; modelo configurável por env. |
 | Falso negativo em urgência médica | Alto (segurança do paciente) | Aviso fixo de 192 na UI; resposta de `ATENDIMENTO_HUMANO` sempre inclui 192; recall de urgência = 100% no dataset como critério de aceite. |
 | Falso positivo de PII (bloquear pergunta legítima) | Frustração do usuário | Casos negativos no teste da regex; mensagem de bloqueio explica o motivo. |
+| Com documentos sobre sintomas (RF07), o modelo "fecha diagnóstico" ou indica remédio | Alto (segurança do paciente) | Relato de sintoma, pedido de diagnóstico ou de remédio → `ATENDIMENTO_HUMANO` (Choice); regra no prompt de geração; documentos sem nomes de medicamentos; aviso fixo no código; casos no `dataset_saude.jsonl`. |
 | Hardware sem GPU torna respostas lentas (3–4 chamadas por pergunta) | UX ruim | Jev para as decisões (sem geração de texto) e saídas curtas no modo local (teto de 120 tokens); latência por nó registrada; modelo menor configurável. |
 | Alucinação na geração | Informação de saúde incorreta | SCORE com limiar; prompt "responda somente com base no contexto"; fontes exibidas; fallback padronizado. |
 

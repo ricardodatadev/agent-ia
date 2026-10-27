@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/ricardodatadev/agente-ia/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardodatadev/agente-ia/actions/workflows/ci.yml)
 
-Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **responde dúvidas com RAG**, **bloqueia mensagens ofensivas e dados pessoais antes de qualquer busca ou geração (LGPD)** e **agenda consultas ou encaminha para a equipe via tool calling**. As decisões do fluxo são tomadas pelo **Jev da TypeSafe AI** ou, sem chave, por um **modo local** com o próprio LLM — e tudo sobe com um único `docker compose up`, rodando localmente por padrão.
+Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **responde dúvidas com RAG** (sobre a unidade e informações gerais de saúde do Ministério da Saúde), **bloqueia mensagens ofensivas e dados pessoais antes de qualquer busca ou geração (LGPD)** e **agenda consultas ou encaminha para a equipe via tool calling**. As decisões do fluxo são tomadas pelo **Jev da TypeSafe AI** ou, sem chave, por um **modo local** com o próprio LLM — e tudo sobe com um único `docker compose up`, rodando localmente por padrão.
 
-> ⚠️ Projeto de demonstração/portfólio. Os documentos da UBS são **fictícios** e o assistente **não substitui atendimento médico** — em emergência, ligue 192.
+> ⚠️ Projeto de demonstração/portfólio. Os documentos da UBS são **fictícios**; os de saúde geral (`backend/data/saude-*.md`) são resumos de páginas públicas do Ministério da Saúde, com a fonte no topo de cada arquivo. O assistente **não substitui atendimento médico** — em emergência, ligue 192.
 
 ![Conversa real com o Llama 3.2 3B: resposta RAG com fontes, urgência encaminhada com prioridade e CPF bloqueado pelo guardrail de LGPD](docs/screenshot.png)
 
@@ -19,9 +19,10 @@ Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **r
 - **Camadas determinísticas:** regex de CPF/CNS/RG/telefone/e-mail (inclusive com espaços e "arroba") decide em milissegundos e com zero tokens. Para urgência, a regra de termos — com **trava de negação** ("não estou com dor no peito" não é urgência) — é o **plano B**: quem decide é o Jev, e a regra assume se ele estiver fora do ar ou sem chave.
 - **Falha segura nas decisões:** saída inválida do LLM vira bloqueio `INDETERMINADO`, rota de consulta protegida pelo Score ou nota 1 (fallback) — uma decisão quebrada nunca libera uma resposta sem evidência.
 - **Score ancorado em evidência:** o LLM precisa citar a frase do documento; o código confere se a citação existe e se trata do assunto perguntado.
+- **Informação de saúde sem diagnóstico:** perguntas gerais sobre dengue, gripe, hipertensão e diabetes são respondidas com resumos do Ministério da Saúde e terminam com um aviso fixo, escrito no código; quem relata o que sente, pergunta "será que é dengue?" ou pede um remédio é encaminhado à equipe.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
-- **Avaliação com LLM real** em 50 casos rotulados, **319 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
+- **Avaliação com LLM real** em 50 casos rotulados, **330 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
 
 ## Arquitetura
 
@@ -98,6 +99,7 @@ Respostas de bloqueio, fora do escopo, fallback e das tools são **textos fixos*
 | :--- | :--- | :--- |
 | Urgência médica sem orientação | **Jev decide** (pergunta `urgencia`, limiar baixo para não deixar passar); regra de termos com trava de negação como plano B e no modo local; 192 em toda resposta de atendimento e banner fixo na tela; CVV (188) em menção a suicídio | Duas redes independentes: o plano B funciona com o Jev fora do ar |
 | Vazamento de dados (LGPD) | Noul em duas camadas; histórico com PII descartado; logs só com metadados | Nenhum texto de mensagem é gravado em log |
+| Diagnóstico ou remédio indicado pelo assistente | Relato de sintoma, "será que é...?" ou pedido de remédio → atendimento humano (Choice); regra no prompt de geração; documentos sem nomes de medicamentos | Resposta de saúde termina com aviso fixo no código: informação geral, não substitui avaliação, 192 em emergência |
 | Alucinação | Score com evidência conferida no código; geração restrita ao contexto; fontes exibidas | Sem evidência → resposta fixa, nada é gerado |
 | Uso fora do propósito / prompt injection | Choice com rota de escopo; prompts nunca revelam instruções | Resposta fixa |
 | Ação indevida por tool | Uma tool por rota; argumentos validados antes de executar | Especialidade ausente ou inexistente → pergunta, não executa |
@@ -138,7 +140,7 @@ Os blocos prontos para copiar estão no [`.env.example`](.env.example). Sem chav
 
 ### Reingerir documentos
 
-A ingestão roda sozinha no startup quando a coleção está vazia. Depois de editar `backend/data/`:
+A ingestão roda sozinha no startup quando faltam pontos na coleção: ela está vazia ou há documentos novos em `backend/data/`. Depois de **editar** um documento existente, reingira à mão:
 
 ```bash
 docker compose run --rm backend python scripts/ingest.py
@@ -160,11 +162,13 @@ docker compose run --rm backend python scripts/ingest.py
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest                      # 319 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
+pytest                      # 330 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
 pytest -m integration       # contra a stack real: Qdrant + bge-m3 + API no ar
 python tests/eval/run_eval.py   # avaliação com o LLM real nos 50 casos de tests/eval/dataset.jsonl
                                 # também soma os tokens gastos em cada decisão (Noul, Choice, Score), no Llama ou no Jev,
                                 # para comparar os dois motores
+python tests/eval/run_eval.py --dataset tests/eval/dataset_saude.jsonl --label saude
+                                # informações gerais de saúde: pergunta informativa responde, diagnóstico e remédio encaminham
 ```
 
 ### Resultados da avaliação
@@ -222,6 +226,7 @@ A mecânica (grafo, decisões, guardrails, API, UI) é independente do domínio.
 - **Erros que falham de forma segura:** "qual o nome do diretor?" foi classificada como fora do escopo e um prompt injection foi bloqueado como `INDETERMINADO` — ambos com texto fixo, nada inventado.
 - **Geração com modelo pequeno:** na revisão manual, 1 de 10 respostas acrescentou uma frase que não está nos documentos (sem risco clínico). Próximo passo: modelo maior ou verificação da resposta contra o contexto.
 - **Regra de urgência e perguntas informativas:** no modo local e no plano B, "o que é um AVC?" ou "meu pai teve infarto há 10 anos" ainda são tratados como urgência, porque a regra não distingue contexto (a trava só cobre negação). Com o Jev ativo essa distinção é da pergunta `urgencia`. Os casos estão em `tests/eval/dataset_robustez.jsonl`, ainda sem medição com o LLM real nem com o Jev.
+- **Informações gerais de saúde:** cobrem só 4 doenças (dengue, gripe, hipertensão e diabetes), e o `dataset_saude.jsonl` (14 casos) ainda não foi medido com o LLM real. O aviso fixo e o encaminhamento de quem pede diagnóstico não dependem do modelo, mas a fronteira entre "pergunta geral" e "relato de sintoma" é decidida pelo Choice.
 - **Jev ainda não avaliado com o dataset:** a integração está testada pelo SDK real com rede simulada (contrato, decisões, erros, LGPD), mas a chamada real e as métricas com o Jev dependem de chave (lista de espera).
 - **Busca:** sem re-ranking nem busca híbrida (ADR-05); a avaliação não mostrou necessidade.
 - **Escopo:** sem agendamento real, autenticação ou persistência de conversas (por decisão, LGPD).

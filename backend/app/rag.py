@@ -124,6 +124,15 @@ def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) 
     return chunks
 
 
+def expected_chunks(data_dir: Path) -> int:
+    """Quantos pontos os documentos de `data_dir` geram — só chunking, sem embeddings."""
+    return sum(
+        len(chunk_text(p.read_text(encoding="utf-8")))
+        for p in data_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in SUPPORTED_SUFFIXES
+    )
+
+
 def point_id(source: str, chunk_index: int) -> str:
     """ID determinístico: reingerir o mesmo arquivo sobrescreve os mesmos pontos (AC-RF01-2)."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}#{chunk_index}"))
@@ -253,7 +262,7 @@ class VectorStore:
         return report
 
     def ensure_ingested(self, data_dir: Path = DATA_DIR) -> IngestReport | None:
-        """Ingere só se a coleção estiver vazia (startup do backend, RF05)."""
-        if self.count() > 0:
+        """Ingere se faltarem pontos: coleção vazia ou documentos novos em `data/` (startup do backend, RF05/RF07)."""
+        if self.count() >= expected_chunks(data_dir):
             return None
         return self.ingest_dir(data_dir)

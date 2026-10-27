@@ -30,6 +30,7 @@ from app.prompts import (
     schedule_ask_reply,
     schedule_confirmed_reply,
     schedule_unavailable_reply,
+    with_health_notice,
 )
 from app.tools import (
     AGENDAR_SCHEMA,
@@ -200,7 +201,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
             *history_messages(state.get("history", [])),
             HumanMessage(generate_user_prompt(state["message"], state["contexts"])),
         ]
-        reply = message_text(deps.chat_model.invoke(messages))
+        reply = with_health_notice(message_text(deps.chat_model.invoke(messages)), state["contexts"])  # RF07
         return {"reply": reply, "fallback": False, "llm_calls": calls(state, 1)}
 
     # -- arestas condicionais
