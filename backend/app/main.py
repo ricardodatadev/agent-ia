@@ -207,7 +207,7 @@ def create_app(
         if isinstance(deps.judge, JevJudge):  # fecha o cliente HTTP do SDK
             deps.judge.close()
 
-    app = FastAPI(title="Assistente UBS · Agente de IA", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Saúde Digital · Assistente virtual", version="1.0.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

@@ -9,10 +9,10 @@
   },
   "pii": {
     "type": "noul",
-    "instructions": "A mensagem informa ou pede dados pessoais ou de saúde que não devem ser tratados pelo assistente virtual da UBS?",
+    "instructions": "A mensagem informa ou pede dados pessoais ou de saúde que não devem ser tratados pelo assistente virtual da Secretaria Municipal de Saúde?",
     "criteria": {
       "true": "Informa documentos ou contatos (CPF, RG, Cartão SUS, telefone, e-mail, endereço); cita o nome completo de outra pessoa junto com informação de saúde; pede resultados de exames, prontuário, diagnóstico ou histórico médico de qualquer paciente; ou pede dados pessoais de pacientes ou funcionários.",
-      "false": "Dúvidas gerais sobre a UBS, vacinas, exames, horários, especialidades e consultas; o paciente descrevendo os próprios sintomas ou pedindo para marcar consulta."
+      "false": "Dúvidas gerais sobre as unidades de saúde, vacinas, exames, horários, especialidades e consultas; o paciente descrevendo os próprios sintomas ou pedindo para marcar consulta."
     }
   },
   "urgencia": {

@@ -21,7 +21,7 @@ Nenhuma tarefa é considerada concluída sem que os critérios de aceite (AC) vi
 ## 1. Objetivo e escopo
 
 ### 1.1 Objetivo
-Assistente virtual para pacientes de uma UBS que:
+Assistente virtual de atendimento ao cidadão: **módulo para plataformas de saúde digital do SUS municipal** (app ou portal da Secretaria Municipal de Saúde). Atende sobre toda a **rede municipal** — UBS, farmácia, CAPS e UPA — e:
 - responde dúvidas sobre funcionamento, vacinação, exames e campanhas usando **RAG sobre documentos da UBS (Qdrant)**;
 - responde dúvidas gerais de saúde (dengue, gripe, hipertensão e diabetes) com **resumos de páginas públicas do Ministério da Saúde**, citando a fonte, **sem diagnosticar nem indicar remédios** (RF07, pós-v1);
 - bloqueia cedo (antes de RAG/geração) mensagens ofensivas e envio/solicitação de dados pessoais sensíveis (**LGPD/PII**);
@@ -303,6 +303,25 @@ class ToolResult(BaseModel):
 
 ---
 
+### RF08 — Rede municipal de saúde — pós-v1, T-30
+
+**Descrição:** o assistente deixa de representar uma única UBS e passa a ser o **assistente virtual da Secretaria Municipal de Saúde**, um módulo de uma plataforma de saúde digital. Os documentos descrevem a rede do município: três UBS, a Farmácia Municipal, o CAPS e a UPA 24h.
+
+**Regras:**
+1. **Nomes:** o município é genérico ("Secretaria Municipal de Saúde", sem nome de cidade, para não se confundir com uma prefeitura real); só as unidades têm nomes fictícios (UBS Jardim Esperança, UBS Vila Nova, UBS Santa Clara). Endereços e telefones são fictícios.
+2. **Documentos:** `unidades.md` (resumo de horários e uma seção por unidade, com endereço, horário e serviços) e os documentos da rede (`funcionamento.md`, `vacinas.md`, `exames.md`, `especialidades.md`) escritos para a rede, incluindo a **UBS de referência** (cada cidadão é atendido na UBS do seu endereço) e como descobri-la.
+3. **Pergunta ambígua:** quando a resposta depende da unidade e o cidadão não disse qual ("que horas a UBS abre?"), a geração **lista as unidades** do contexto ou **pergunta qual é a UBS dele**; nunca escolhe uma unidade por conta própria (regra no prompt de geração).
+4. **Ferramentas sem mudança de contrato:** o agendamento continua sendo uma solicitação, confirmada na **UBS de referência** com o protocolo. O assistente **não pede endereço** (política de PII da RF02.1 mantida).
+5. Prompts, perguntas do Jev, respostas fixas e frontend passam a falar em nome da Secretaria Municipal de Saúde. Nomes internos (`ubs_docs`, `INTENT`, rotas) não mudam.
+
+**Critérios de aceite:**
+- **AC-RF08-1** — Os documentos da rede (todos exceto `saude-*.md`) são marcados como fictícios, citam as três UBS e não citam nome de cidade.
+- **AC-RF08-2** — *Given* "Qual UBS abre no sábado?", *Then* `route = "CONSULTA_RAG"` e a resposta cita a UBS Jardim Esperança, com `unidades.md` nas fontes.
+- **AC-RF08-3** — *Given* "Até que horas o posto fica aberto?" (sem unidade), *Then* a resposta lista os horários das unidades ou pergunta qual é a UBS do cidadão (avaliação manual no `dataset_rede.jsonl`).
+- **AC-RF08-4** — As respostas fixas de agendamento e encaminhamento remetem à **UBS de referência** e nenhuma pede endereço.
+
+---
+
 ## 4. Requisitos não funcionais
 
 | ID | Categoria | Requisito | Verificação |
@@ -445,11 +464,12 @@ ai-agent/
 > `config.py`, `prompts.py` e `llm.py` foram adicionados à estrutura do documento-fonte para isolar configuração, prompts (troca de nicho — RNF07) e provider de LLM (P01). Não há outras camadas adicionais.
 
 ### 5.5 Documentos de exemplo (`backend/data/`)
-Mínimo para a v1 (conteúdo fictício, sem dados reais de pacientes):
-- `funcionamento.md` — horários, endereço fictício, telefone fictício, documentos necessários.
-- `vacinas.md` — calendário de vacinação e campanhas.
+Conteúdo fictício, sem dados reais de pacientes. Na v1 os documentos descreviam uma única UBS; desde a T-30 (RF08) descrevem a **rede municipal**:
+- `unidades.md` — resumo de horários e uma seção por unidade (UBS Jardim Esperança, UBS Vila Nova, UBS Santa Clara, Farmácia Municipal, CAPS, UPA 24h): endereço e telefone fictícios, horário e serviços.
+- `funcionamento.md` — UBS de referência e como descobri-la, documentos necessários, cadastro, farmácia, privacidade.
+- `vacinas.md` — salas de vacina da rede, calendário de vacinação e campanhas.
 - `exames.md` — exames disponíveis e preparo (jejum, coleta de urina etc.).
-- `especialidades.md` — especialidades e como funciona o encaminhamento.
+- `especialidades.md` — especialidades de cada UBS e como funciona o encaminhamento.
 
 Pós-v1 (RF07, T-28) — informações gerais de saúde, resumidas de páginas públicas do Ministério da Saúde (fonte no topo de cada arquivo):
 - `saude-dengue.md`, `saude-gripe.md`, `saude-hipertensao.md`, `saude-diabetes.md`.
@@ -481,8 +501,9 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-27 | Tokens por decisão: evento `llm_answer` no `LLMJudge` e soma por decisão e por motor no `run_eval.py` | RNF06 | T-26 | ☑ |
 | T-28 | Informações gerais de saúde: resumos do Ministério da Saúde no RAG, Choice e geração sem diagnóstico nem remédio, aviso fixo, ingestão que completa a coleção | AC-RF07-1..6 | T-27 | ☑ |
 | T-29 | Respostas de agendamento e encaminhamento sem promessa de contato: protocolo levado à recepção, "aguarde" reservado para `HANDOFF_LIVE=true`, urgência com 192 primeiro | AC-RF03-5..6 | T-28 | ☑ |
+| T-30 | Rede municipal: assistente da Secretaria Municipal de Saúde, documentos com 3 UBS fictícias, Farmácia, CAPS e UPA, regra de pergunta ambígua, textos e frontend | AC-RF08-1..4 | T-29 | ☑ |
 
-> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde) e [15-respostas-encaminhamento.md](checklists/15-respostas-encaminhamento.md) (T-29, respostas sem promessa de contato).
+> Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde) [15-respostas-encaminhamento.md](checklists/15-respostas-encaminhamento.md) (T-29, respostas sem promessa de contato) e [16-rede-municipal.md](checklists/16-rede-municipal.md) (T-30, rede municipal).
 
 **Definition of Done (por tarefa):** código tipado; ACs vinculados cobertos por teste ou verificação manual registrada no PR/commit; `pytest` passando; sem segredos no código; spec atualizada se o comportamento mudou.
 
@@ -516,7 +537,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 
 Métricas reportadas: acurácia por decisão (Noul, Choice, Score) e por motor (Jev e modo local), recall de urgência, taxa de fallback, latência média por nó, média de chamadas LLM por rota.
 
-Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robustez.jsonl` (T-26, urgência e PII) e `dataset_saude.jsonl` (T-28, RF07): perguntas informativas sobre as 4 doenças → `CONSULTA_RAG`; pedido de diagnóstico ou de remédio → `ATENDIMENTO_HUMANO`; doença sem documento → fallback.
+Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robustez.jsonl` (T-26, urgência e PII), `dataset_rede.jsonl` (T-30, RF08: unidades, horários, pergunta ambígua) e `dataset_saude.jsonl` (T-28, RF07): perguntas informativas sobre as 4 doenças → `CONSULTA_RAG`; pedido de diagnóstico ou de remédio → `ATENDIMENTO_HUMANO`; doença sem documento → fallback.
 
 ### 7.4 Matriz de rastreabilidade (resumo)
 
@@ -531,6 +552,7 @@ Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robus
 | RF05 | AC-RF05-1..2 | T-02, T-12 | verificação manual |
 | RF06 | AC-RF06-1..7 | T-22, T-23, T-24 | unit/test_jev_questions, unit/test_llm, integration/test_jev_judge, eval (Jev × modo local) |
 | RF07 | AC-RF07-1..6 | T-28 | unit/test_health_info, integration/test_ingest, eval (`dataset_saude.jsonl`) |
+| RF08 | AC-RF08-1..4 | T-30 | unit/test_rede_municipal, eval (`dataset_rede.jsonl`) |
 
 ---
 
@@ -564,6 +586,7 @@ Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robus
 | ADR-12 | Comparação `llama3.2:3b` × `qwen2.5:3b` → **Llama mantido como padrão**; Qwen como opção no `.env` | Qwen como padrão (adotado por um commit e revertido) | Mesmo dataset (50 casos, CPU): Qwen tem CHOICE 100% (Llama 97%), mas **recall de urgência 86% (Llama 100%) — abaixo da meta do AC-RF02-10** ("Acho que estou tendo um AVC" bloqueada como OFENSA pelo NOUL-LLM), 5% de falsos positivos no NOUL (Llama 0%), RAG coberto 92% (Llama 100%) e RAG médio 69 s (Llama 49 s). As diferenças são de 1–2 casos, mas o erro do Qwen é crítico e o Llama é mais rápido. Viés: prompts/limiares foram ajustados com o Llama. Precedência da urgência sobre o NOUL-LLM foi proposta e não adotada (com o Llama a meta já é atingida). |
 | ADR-13 | Provedor do LLM configurável: Ollama local (padrão), API do Claude ou API do Gemini (`LLM_PROVIDER`) | Só Ollama (ADR-06) | Permite usar um modelo mais capaz/rápido quando não há GPU, sem mudar o grafo. **Custo LGPD:** com API externa, as mensagens dos pacientes saem da máquina (contraria o ADR-06) — aviso explícito no `.env.example` e no README; o padrão continua local. Embeddings e Qdrant ficam sempre locais. Código lê respostas com `.text` (as APIs devolvem blocos de thinking) e falhas de rede/limite/5xx das APIs viram 503. |
 | ADR-14 | **Jev da TypeSafe AI como motor das decisões Noul, Choice e Score**, com modo local quando não há chave (`JEV_PROVIDER=auto`) | Só LLM como juiz (v1); só Jev | O Jev é um modelo especializado em decisões tipadas: devolve probabilidade/confiança, aceita várias perguntas por requisição e, pela documentação, custa US$ 0,042/M tokens de entrada (saída gratuita) com 70–500 ms por chamada. O modo local mantém o projeto executável sem acesso ao Jev (lista de espera) e offline. Implementação com práticas de mercado: SDK oficial fixado, perguntas versionadas em JSON e validadas na inicialização, modelo fixado por versão, limiares configuráveis, falha segura, LGPD nos logs e testes pelo SDK com rede simulada. Custos: com o Jev, as mensagens saem da máquina (LGPD — documentado); o Score do Jev não cita evidência, então a conferência do ADR-11 vale só no modo local; metas a confirmar com o dataset quando houver chave (AC-RF06-7). |
+| ADR-15 | **Rede municipal** no lugar de uma única UBS; cidade genérica, unidades fictícias (T-30) | Manter uma UBS; cidade fictícia com nome | Hoje o atendimento digital do SUS vem de plataformas municipais e estaduais, não de um site por UBS; o assistente como módulo da Secretaria é mais crível. Sem nome de cidade, para não parecer uma prefeitura real. Custo: perguntas que dependem da unidade ficam ambíguas — tratadas por regra de geração (listar ou perguntar), medidas no `dataset_rede.jsonl`. O contrato das ferramentas não muda. |
 | ADR-07 | Termos de urgência roteiam para `ATENDIMENTO_HUMANO` antes do CHOICE-LLM | Depender só do LLM | Falso negativo em urgência tem impacto alto; regra determinística garante recall nos casos conhecidos e economiza tokens. Custo: falsos positivos (ex.: "sangramento leve") vão para atendimento humano — aceitável. **Revisão (2026-10-20):** a urgência também passa à frente do Noul-LLM (só a regex de PII vem antes) — ver RF02.1. **2ª revisão (T-26, 2026-10-21):** a regra literal gerava falsos positivos por negação, pergunta informativa e fato antigo ("não estou com dor no peito"); a urgência passa a ser decidida pelo Jev (pergunta `urgencia`, limiar 0,3) com a regra de termos — agora com trava de negação — como **plano B** (Jev fora do ar, chave recusada) e como decisão do modo local. |
 
 ---

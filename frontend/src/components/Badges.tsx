@@ -58,7 +58,7 @@ export function ToolBadge({ toolCall }: { toolCall: ToolCallInfo }) {
 
 export function NoEvidenceBadge() {
   return (
-    <Pill className="bg-slate-100 text-slate-600 ring-slate-200" title="Os documentos da UBS não trazem essa informação; nenhuma resposta foi gerada">
+    <Pill className="bg-slate-100 text-slate-600 ring-slate-200" title="Os documentos da rede municipal não trazem essa informação; nenhuma resposta foi gerada">
       <span aria-hidden>ℹ️</span> Sem evidência nos documentos
     </Pill>
   );

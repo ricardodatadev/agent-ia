@@ -1,23 +1,24 @@
-# Funcionamento da UBS Jardim Esperança
+# Atendimento na rede municipal de saúde
 
 > Documento fictício para demonstração.
 
-## Horário de atendimento
+## UBS de referência
 
-A UBS Jardim Esperança funciona de segunda a sexta-feira, das 7h às 19h.
-Aos sábados, funciona das 8h às 12h apenas para vacinação e curativos.
-Não há atendimento aos domingos e feriados.
+Cada morador é atendido na UBS de referência do seu endereço, que é a unidade responsável pelo bairro onde mora. Consultas, exames, vacinas e acompanhamento de rotina são feitos nessa UBS.
+Moradores de outras áreas devem procurar a UBS de referência do próprio endereço.
 
-A distribuição de senhas para consultas do dia (demanda espontânea) começa às 7h e vai até as 10h, ou até acabarem as vagas do dia.
+## Como descobrir qual é a sua UBS
 
-## Endereço e contato
+Ligue para a Central de Atendimento da Secretaria Municipal de Saúde, no telefone (00) 0000-0000 (número fictício), de segunda a sexta, das 8h às 17h.
+Ou procure a UBS mais próxima com um comprovante de residência: a recepção informa qual é a UBS de referência do seu endereço.
 
-Endereço: Rua das Acácias, 100 – Bairro Jardim Esperança (endereço fictício).
-Telefone da recepção: (00) 0000-0000 (número fictício), de segunda a sexta, das 8h às 17h.
+## Senhas para consultas do dia
+
+Em todas as UBS, a distribuição de senhas para consultas do dia (demanda espontânea) começa no horário de abertura da unidade e vai até as 10h, ou até acabarem as vagas do dia.
 
 ## Documentos necessários para consulta
 
-Para ser atendido, leve sempre:
+Para ser atendido em qualquer unidade da rede, leve sempre:
 
 - Documento oficial com foto (RG, CNH ou carteira de trabalho);
 - Cartão Nacional de Saúde (Cartão SUS);
@@ -28,15 +29,14 @@ Para crianças e adolescentes menores de 18 anos, é obrigatória a presença de
 
 ## Cadastro na UBS
 
-Para usar os serviços, o morador precisa estar cadastrado na UBS da sua área de residência.
+Para usar os serviços, o morador precisa estar cadastrado na sua UBS de referência.
 O cadastro é feito presencialmente na recepção, com documento com foto, Cartão SUS e comprovante de residência.
-Moradores de outras áreas devem procurar a UBS de referência do seu endereço.
 
 ## Farmácia
 
-A farmácia da UBS funciona de segunda a sexta, das 8h às 17h.
+As farmácias das UBS Jardim Esperança e Santa Clara funcionam de segunda a sexta, das 8h às 17h. A Farmácia Municipal funciona de segunda a sexta, das 8h às 17h, e também aos sábados, das 8h às 12h.
 Para retirar medicamentos é necessário apresentar a receita (válida por 30 dias para a maioria dos medicamentos de uso contínuo, ou conforme indicação médica) e o Cartão SUS.
 
 ## Direitos e privacidade
 
-Informações de prontuário, resultados de exames e dados pessoais só são fornecidos presencialmente ao próprio paciente ou ao seu responsável legal, mediante documento com foto, conforme a Lei Geral de Proteção de Dados (LGPD).
+Informações de prontuário, resultados de exames e dados pessoais só são fornecidos presencialmente ao próprio paciente ou ao seu responsável legal, na UBS, mediante documento com foto, conforme a Lei Geral de Proteção de Dados (LGPD).

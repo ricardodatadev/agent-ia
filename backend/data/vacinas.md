@@ -1,10 +1,11 @@
-# Vacinação na UBS Jardim Esperança
+# Vacinação na rede municipal de saúde
 
 > Documento fictício para demonstração. Baseado no formato do calendário do Programa Nacional de Imunizações, sem substituir orientação profissional.
 
 ## Horário da sala de vacinação
 
-A sala de vacinação funciona de segunda a sexta, das 8h às 16h, e aos sábados das 8h às 12h.
+As salas de vacinação das três UBS (Jardim Esperança, Vila Nova e Santa Clara) funcionam de segunda a sexta, das 8h às 16h.
+Aos sábados, só a UBS Jardim Esperança vacina, das 8h às 12h.
 Não é necessário agendamento para vacinação.
 Leve a caderneta de vacinação e um documento com foto. Se perdeu a caderneta, a equipe pode consultar o registro e emitir uma segunda via.
 
@@ -37,11 +38,11 @@ Gestantes devem receber dTpa a partir da 20ª semana de gestação, a vacina con
 
 A campanha anual contra a gripe ocorre geralmente entre abril e junho.
 Público prioritário: crianças de 6 meses a menores de 6 anos, gestantes, puérperas, pessoas com 60 anos ou mais, profissionais de saúde, professores e pessoas com doenças crônicas.
-Durante a campanha, a vacina da gripe é aplicada de segunda a sexta, das 8h às 16h, e aos sábados das 8h às 12h.
+Durante a campanha, a vacina da gripe é aplicada em todas as UBS de segunda a sexta, das 8h às 16h, e aos sábados das 8h às 12h na UBS Jardim Esperança.
 
 ## Covid-19
 
-A vacina contra a Covid-19 está disponível conforme as orientações vigentes do Ministério da Saúde para cada faixa etária e grupo prioritário. Consulte a sala de vacinação para saber se você precisa de reforço.
+A vacina contra a Covid-19 está disponível conforme as orientações vigentes do Ministério da Saúde para cada faixa etária e grupo prioritário. Consulte a sala de vacinação da sua UBS para saber se você precisa de reforço.
 
 ## Cuidados após a vacina
 

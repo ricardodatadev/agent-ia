@@ -3,7 +3,7 @@ import type { Message } from "../types";
 import { MessageBubble, TypingIndicator } from "./MessageBubble";
 
 const SUGGESTIONS = [
-  "Qual o horário da vacina da gripe?",
+  "Qual UBS abre no sábado?",
   "Preciso de jejum para exame de sangue?",
   "Quero marcar com um cardiologista",
   "Quais são os sintomas da dengue?",
@@ -33,7 +33,7 @@ export function ChatWindow({ messages, loading, onSend, onRetry }: Props) {
         </div>
         <h2 className="text-xl font-semibold text-slate-800">Olá! Como posso ajudar?</h2>
         <p className="mt-1 max-w-sm text-sm text-slate-500">
-          Tiro dúvidas com base nos documentos da UBS, agendo consultas e encaminho você para a equipe.
+          Tiro dúvidas sobre as unidades e os serviços da rede municipal de saúde, agendo consultas e encaminho você para a equipe.
         </p>
         <div className="mt-6 grid w-full max-w-md gap-2 sm:grid-cols-2">
           {SUGGESTIONS.map((s) => (

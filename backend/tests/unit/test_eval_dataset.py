@@ -87,6 +87,15 @@ def test_dataset_de_saude_e_valido() -> None:  # RF07, T-28
     assert all(urgency_signal(c["message"]) == "none" and find_pii(c["message"]) is None for c in cases)
 
 
+def test_dataset_da_rede_municipal_e_valido() -> None:  # RF08, T-30
+    cases = load_dataset(EVAL_DIR / "dataset_rede.jsonl")
+    assert len(cases) == 9 and len({c["id"] for c in cases}) == 9
+    assert all(set(c) == FIELDS and c["expected_route"] == "CONSULTA_RAG" for c in cases)
+    groups = Counter(c["id"].split("-")[1] for c in cases)
+    assert groups == {"inf": 7, "amb": 1, "nao": 1}
+    assert all(urgency_signal(c["message"]) == "none" and find_pii(c["message"]) is None for c in cases)
+
+
 def test_camada_deterministica_no_dataset_de_robustez() -> None:
     for case in load_dataset(ROBUSTEZ):
         cid, message = case["id"], case["message"]

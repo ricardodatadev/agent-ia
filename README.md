@@ -1,10 +1,10 @@
-# Assistente UBS · Agente de IA
+# Saúde Digital · Assistente virtual do SUS municipal
 
 [![CI](https://github.com/ricardodatadev/agente-ia/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardodatadev/agente-ia/actions/workflows/ci.yml)
 
-Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **responde dúvidas com RAG** (sobre a unidade e informações gerais de saúde do Ministério da Saúde), **bloqueia mensagens ofensivas e dados pessoais antes de qualquer busca ou geração (LGPD)** e **agenda consultas ou encaminha para a equipe via tool calling**. As decisões do fluxo são tomadas pelo **Jev da TypeSafe AI** ou, sem chave, por um **modo local** com o próprio LLM — e tudo sobe com um único `docker compose up`, rodando localmente por padrão.
+Assistente virtual de atendimento ao cidadão, pensado como **módulo de uma plataforma de saúde digital do SUS municipal** (app ou portal da Secretaria Municipal de Saúde). Atende sobre toda a rede (UBS, farmácia, CAPS e UPA): **responde dúvidas com RAG** (sobre as unidades e informações gerais de saúde do Ministério da Saúde), **bloqueia mensagens ofensivas e dados pessoais antes de qualquer busca ou geração (LGPD)** e **agenda consultas ou encaminha para a equipe via tool calling**. As decisões do fluxo são tomadas pelo **Jev da TypeSafe AI** ou, sem chave, por um **modo local** com o próprio LLM — e tudo sobe com um único `docker compose up`, rodando localmente por padrão.
 
-> ⚠️ Projeto de demonstração/portfólio. Os documentos da UBS são **fictícios**; os de saúde geral (`backend/data/saude-*.md`) são resumos de páginas públicas do Ministério da Saúde, com a fonte no topo de cada arquivo. O assistente **não substitui atendimento médico** — em emergência, ligue 192.
+> ⚠️ Projeto de demonstração/portfólio. O município é genérico e as unidades (UBS Jardim Esperança, Vila Nova e Santa Clara) são **fictícias**, com endereços e telefones fictícios; os de saúde geral (`backend/data/saude-*.md`) são resumos de páginas públicas do Ministério da Saúde, com a fonte no topo de cada arquivo. O assistente **não substitui atendimento médico** — em emergência, ligue 192.
 
 ![Conversa real com o Llama 3.2 3B: resposta RAG com fontes, urgência encaminhada com prioridade e CPF bloqueado pelo guardrail de LGPD](docs/screenshot.png)
 
@@ -22,7 +22,7 @@ Assistente virtual para pacientes de uma Unidade Básica de Saúde (UBS) que **r
 - **Informação de saúde sem diagnóstico:** perguntas gerais sobre dengue, gripe, hipertensão e diabetes são respondidas com resumos do Ministério da Saúde e terminam com um aviso fixo, escrito no código; quem relata o que sente, pergunta "será que é dengue?" ou pede um remédio é encaminhado à equipe.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
-- **Avaliação com LLM real** em 50 casos rotulados, **335 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
+- **Avaliação com LLM real** em 50 casos rotulados, **340 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
 
 ## Arquitetura
 
@@ -162,18 +162,20 @@ docker compose run --rm backend python scripts/ingest.py
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest                      # 335 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
+pytest                      # 340 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
 pytest -m integration       # contra a stack real: Qdrant + bge-m3 + API no ar
 python tests/eval/run_eval.py   # avaliação com o LLM real nos 50 casos de tests/eval/dataset.jsonl
                                 # também soma os tokens gastos em cada decisão (Noul, Choice, Score), no Llama ou no Jev,
                                 # para comparar os dois motores
 python tests/eval/run_eval.py --dataset tests/eval/dataset_saude.jsonl --label saude
                                 # informações gerais de saúde: pergunta informativa responde, diagnóstico e remédio encaminham
+python tests/eval/run_eval.py --dataset tests/eval/dataset_rede.jsonl --label rede
+                                # rede municipal: unidades, horários e pergunta ambígua ("até que horas o posto abre?")
 ```
 
 ### Resultados da avaliação
 
-50 casos rotulados (RAG coberto e não coberto, agendamento, urgência, atendimento, fora do escopo, ofensa e PII), `llama3.2:3b` em CPU, **decisões no modo local**. O mesmo runner avalia o Jev: basta definir `TYPESAFE_API_KEY` e rodar `run_eval.py`.
+50 casos rotulados (RAG coberto e não coberto, agendamento, urgência, atendimento, fora do escopo, ofensa e PII), `llama3.2:3b` em CPU, **decisões no modo local**. Rodada feita quando o projeto atendia uma única UBS; a nova rodada, com a rede municipal e os datasets de saúde e de robustez, está nos próximos passos. O mesmo runner avalia o Jev: basta definir `TYPESAFE_API_KEY` e rodar `run_eval.py`.
 
 | Métrica | Resultado | Meta |
 | :--- | :--- | :--- |
@@ -209,6 +211,7 @@ Detalhes, alternativas e motivos em [SPEC §9](docs/spec-driven/SPEC.md#9-decis�
 | 11 | Score com citação conferida no código | O modelo pequeno dava notas incoerentes com a própria citação |
 | 13 | Provedor do LLM configurável (Ollama, Claude, Gemini) | Modelo mais rápido sem GPU, sem mudar o grafo; o padrão continua local |
 | 14 | Jev da TypeSafe AI como motor das decisões, com modo local sem chave | Decisões tipadas com probabilidade/confiança e baixo custo; o projeto continua executável offline |
+| 15 | Rede municipal no lugar de uma UBS única; cidade genérica, unidades fictícias | O atendimento digital do SUS vem de plataformas municipais, não de um site por UBS; perguntas que dependem da unidade são listadas ou perguntadas, nunca adivinhadas |
 
 ## Como trocar de nicho
 
@@ -226,11 +229,12 @@ A mecânica (grafo, decisões, guardrails, API, UI) é independente do domínio.
 - **Erros que falham de forma segura:** "qual o nome do diretor?" foi classificada como fora do escopo e um prompt injection foi bloqueado como `INDETERMINADO` — ambos com texto fixo, nada inventado.
 - **Geração com modelo pequeno:** na revisão manual, 1 de 10 respostas acrescentou uma frase que não está nos documentos (sem risco clínico). Próximo passo: modelo maior ou verificação da resposta contra o contexto.
 - **Regra de urgência e perguntas informativas:** no modo local e no plano B, "o que é um AVC?" ou "meu pai teve infarto há 10 anos" ainda são tratados como urgência, porque a regra não distingue contexto (a trava só cobre negação). Com o Jev ativo essa distinção é da pergunta `urgencia`. Os casos estão em `tests/eval/dataset_robustez.jsonl`, ainda sem medição com o LLM real nem com o Jev.
+- **Rede municipal:** quando a pergunta depende da unidade e o cidadão não diz qual, a regra é listar as unidades ou perguntar; o `dataset_rede.jsonl` (9 casos) ainda não foi medido com o LLM real. O assistente não pede endereço, então não descobre sozinho a UBS de referência.
 - **Informações gerais de saúde:** cobrem só 4 doenças (dengue, gripe, hipertensão e diabetes), e o `dataset_saude.jsonl` (14 casos) ainda não foi medido com o LLM real. O aviso fixo e o encaminhamento de quem pede diagnóstico não dependem do modelo, mas a fronteira entre "pergunta geral" e "relato de sintoma" é decidida pelo Choice.
 - **Jev ainda não avaliado com o dataset:** a integração está testada pelo SDK real com rede simulada (contrato, decisões, erros, LGPD), mas a chamada real e as métricas com o Jev dependem de chave (lista de espera).
 - **Busca:** sem re-ranking nem busca híbrida (ADR-05); a avaliação não mostrou necessidade.
 - **Escopo:** sem agendamento real, autenticação ou persistência de conversas (por decisão, LGPD). Agendamento e encaminhamento geram um protocolo que o paciente leva à recepção; o assistente não promete retorno, porque ninguém consegue entrar na conversa.
-- **Próximos passos:** transferência ao vivo para um atendente (fila, painel e mensagens em tempo real; as respostas com "aguarde" já estão prontas atrás de `HANDOFF_LIVE=true`), streaming das respostas, suporte a PDF na ingestão, métricas no Prometheus.
+- **Próximos passos:** nova rodada de avaliação com o LLM real (os 50 casos e os datasets de robustez, saúde e rede), transferência ao vivo para um atendente (fila, painel e mensagens em tempo real; as respostas com "aguarde" já estão prontas atrás de `HANDOFF_LIVE=true`), streaming das respostas, suporte a PDF na ingestão, métricas no Prometheus.
 
 ---
 

@@ -55,8 +55,8 @@ export default function App() {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-semibold leading-tight">Assistente UBS · Agente de IA</h1>
-            <p className="truncate text-xs text-slate-500">UBS Jardim Esperança · demonstração com dados fictícios</p>
+            <h1 className="truncate text-base font-semibold leading-tight">Saúde Digital · Assistente virtual</h1>
+            <p className="truncate text-xs text-slate-500">Secretaria Municipal de Saúde · demonstração com unidades fictícias</p>
           </div>
           <span className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> RAG · Guardrails · Tools

@@ -62,7 +62,7 @@ AGENDAR_SCHEMA: dict[str, Any] = {
     "type": "function",
     "function": {
         "name": TOOL_AGENDAR,
-        "description": "Solicita o agendamento de uma consulta na UBS.",
+        "description": "Solicita o agendamento de uma consulta na rede municipal de saúde.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -80,7 +80,7 @@ ATENDENTE_SCHEMA: dict[str, Any] = {
     "type": "function",
     "function": {
         "name": TOOL_ATENDENTE,
-        "description": "Encaminha o paciente para a equipe de atendimento ou enfermagem da UBS.",
+        "description": "Encaminha o paciente para a equipe de atendimento ou enfermagem da rede municipal de saúde.",
         "parameters": {
             "type": "object",
             "properties": {

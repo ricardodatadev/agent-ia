@@ -48,7 +48,7 @@ def test_sem_especialidade_pede_esclarecimento() -> None:  # AC-RF03-2
 def test_especialidade_indisponivel_lista_as_disponiveis() -> None:  # AC-RF03-3
     state, _ = run("quero marcar com um neurocirurgião", "AGENDAMENTO", tool_call(AGENDAR, especialidade="neurocirurgião"))
     assert state["tool_call"] is None
-    assert "não é atendida na UBS" in state["reply"]
+    assert "não é atendida nas UBS da rede municipal" in state["reply"]
     assert "Clínico geral" in state["reply"]
 
 

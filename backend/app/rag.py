@@ -1,4 +1,4 @@
-"""RAG: chunking dos documentos da UBS, ingestão idempotente no Qdrant e busca (SPEC RF01)."""
+"""RAG: chunking dos documentos da rede municipal de saúde, ingestão idempotente no Qdrant e busca (SPEC RF01)."""
 
 import logging
 import re
@@ -165,7 +165,7 @@ def _unavailable(dependency: str, errors: tuple[type[BaseException], ...]) -> It
 
 
 class VectorStore:
-    """Coleção do Qdrant com os chunks dos documentos da UBS."""
+    """Coleção do Qdrant com os chunks dos documentos da rede municipal de saúde."""
 
     def __init__(self, client: QdrantClient, embeddings: Embeddings, collection: str) -> None:
         self.client = client
