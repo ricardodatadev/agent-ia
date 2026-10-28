@@ -28,7 +28,7 @@ As decisões do fluxo são tomadas pelo **Jev da TypeSafe AI** ou, sem chave, po
 - **Informação de saúde sem diagnóstico:** perguntas gerais sobre dengue, gripe, hipertensão e diabetes são respondidas com resumos do Ministério da Saúde e terminam com um aviso fixo, escrito no código; quem relata o que sente, pergunta "será que é dengue?" ou pede um remédio é encaminhado à equipe.
 - **Tools com permissão mínima:** cada rota vincula **uma** ferramenta ao LLM; os argumentos são validados com Pydantic antes de executar.
 - **Spec-Driven Development:** requisitos, critérios de aceite, ADRs e checklists em [`docs/spec-driven/`](docs/spec-driven/SPEC.md); cada decisão revista com dados da avaliação está registrada lá.
-- **Avaliação com LLM real** em 89 casos rotulados (4 conjuntos), **340 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
+- **Avaliação com LLM real** em 89 casos rotulados (4 conjuntos), **358 testes** automatizados sem Docker, rodando no CI a cada push, e testes de integração contra a stack real.
 
 ## Arquitetura
 
@@ -41,10 +41,11 @@ flowchart TD
     CHOICE -- AGENDAMENTO --> AGD[Tool: agendar consulta]
     CHOICE -- ATENDIMENTO_HUMANO --> ATD[Tool: encaminhar à equipe<br/>sempre com 192]
     CHOICE -- FORA_DO_NICHO --> FDN[Resposta fixa de escopo]
+    CHOICE -- "CONSULTA_RAG: horário sem unidade" --> HOR[Resumo de horários da rede<br/>lido do documento, sem LLM]
     RET --> SCORE{"Score<br/>Jev ou LLM com evidência conferida"}
     SCORE -- "nota ≥ 3" --> GEN[Geração só com o contexto<br/>+ fontes]
     SCORE -- "nota < 3" --> FB[Fallback fixo:<br/>não encontrei nos documentos]
-    BLOQ & AGD & ATD & FDN & GEN & FB --> END([Resposta + selos na UI])
+    BLOQ & AGD & ATD & FDN & HOR & GEN & FB --> END([Resposta + selos na UI])
 ```
 
 | Componente | Papel |
@@ -95,6 +96,7 @@ Práticas adotadas na integração: SDK oficial e modelo do Jev **fixados por ve
 | Fora do escopo | 2 | ~7 s |
 | Agendamento / atendente | 3 | 9–33 s |
 | Pergunta sem resposta nos documentos | 3 | ~30 s (fallback, sem geração) |
+| Horário sem unidade ("que horas a UBS abre?") | 2 | ~10 s (resumo da rede, sem Score nem geração) |
 | Pergunta respondida pelo RAG | 4 | 60–80 s |
 
 Respostas de bloqueio, fora do escopo, fallback e das tools são **textos fixos** (ADR-03): determinísticas, revisáveis e sem custo de geração.
@@ -168,7 +170,7 @@ docker compose run --rm backend python scripts/ingest.py
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest                      # 340 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
+pytest                      # 358 testes, sem Docker (LLM, retriever e Qdrant falsos ou em memória)
 pytest -m integration       # contra a stack real: Qdrant + bge-m3 + API no ar
 python tests/eval/run_eval.py   # avaliação com o LLM real nos 50 casos de tests/eval/dataset.jsonl
                                 # também soma os tokens gastos em cada decisão (Noul, Choice, Score), no Llama ou no Jev,
@@ -203,14 +205,14 @@ Rodada de 2026-10-27, já com a rede municipal: **89 casos em 4 conjuntos**, `ll
 | :--- | :--- |
 | Informações de saúde (14) | **14/14**: as 7 perguntas gerais respondidas com o aviso fixo, as 5 de diagnóstico ou remédio encaminhadas à equipe, as 2 sem documento no fallback |
 | Robustez de urgência e PII (16) | Urgência 7/7, PII 5/5; "o que é um AVC?" e "meu pai teve infarto há 10 anos" viraram urgência (limitação conhecida, abaixo) |
-| Rede municipal (9) | 6/9; **as perguntas ambíguas ("até que horas o posto abre?") falharam**: o modelo escolheu uma unidade, apesar da regra no prompt |
+| Rede municipal (9) | 6/9 na rodada: **as perguntas ambíguas ("até que horas o posto abre?") falharam**, porque o modelo escolheu uma unidade apesar da regra no prompt. Depois da correção (abaixo), **7/9** e nenhuma unidade escolhida sozinha |
 
 **O que a avaliação mudou no sistema** — a parte mais útil de medir com o LLM real:
 
 - O Noul-LLM bloqueou *"meu filho se envenenou"* como PII e *"estou pensando em me matar"* como ofensa. Um erro desses deixa o paciente sem orientação → **termos de urgência agora passam à frente do LLM** (a regex de PII continua antes).
 - O Llama deu nota 4 a *"aceita plano de saúde?"* citando uma frase real, mas de outro assunto, e inventou a resposta → o Score passou a conferir **se o trecho citado trata do assunto da pergunta**. A primeira versão dessa regra ficou estrita demais e rebaixou 2 respostas corretas; a avaliação mostrou e ela foi ajustada.
 - A primeira pergunta após `docker compose up` dava **503** (modelo frio) → **aquecimento no startup**: 216 s → 98 s na 1ª pergunta.
-- Com a rede municipal, a regra "nunca escolha uma unidade" ficou só no prompt, e o Llama 3B a ignorou nas 2 perguntas ambíguas. Uma delas respondeu "não abre aos sábados", o que é falso para uma das UBS → próximo passo: tirar essa decisão do LLM, como já é feito com a urgência.
+- Com a rede municipal, a regra "nunca escolha uma unidade" ficou só no prompt, e o Llama 3B a ignorou nas 2 perguntas ambíguas. Uma delas respondeu "não abre aos sábados", o que é falso para uma das UBS → **a decisão saiu do LLM**, como já é feito com a urgência: pergunta de horário sem unidade recebe o resumo de horários da rede, lido do documento. A resposta cai de ~100 s para ~10 s, com 2 chamadas ao modelo em vez de 4.
 
 Números completos e decisões em [08-testes-avaliacao.md](docs/spec-driven/checklists/08-testes-avaliacao.md) (v1), [17-avaliacao-rede.md](docs/spec-driven/checklists/17-avaliacao-rede.md) (rodada atual) e nos ADRs da SPEC.
 
@@ -248,12 +250,12 @@ A mecânica (grafo, decisões, guardrails, API, UI) é independente do domínio.
 - **Erros que falham de forma segura:** "qual o nome do diretor?" foi classificada como fora do escopo e um prompt injection foi bloqueado como `INDETERMINADO` — ambos com texto fixo, nada inventado.
 - **Geração com modelo pequeno:** na revisão manual, 1 de 11 respostas acrescentou uma frase que não está nos documentos e 1 ficou com redação confusa (sem risco clínico). Próximo passo: modelo maior ou verificação da resposta contra o contexto.
 - **Regra de urgência e perguntas informativas:** no modo local e no plano B, "o que é um AVC?" ou "meu pai teve infarto há 10 anos" são tratados como urgência, porque a regra não distingue contexto (a trava só cobre negação). A avaliação confirmou os 2 casos. O erro é na direção segura: a resposta encaminha à equipe com o 192. Com o Jev ativo, essa distinção é da pergunta `urgencia`, ainda sem medição (requer chave).
-- **Rede municipal:** quando a pergunta depende da unidade e o cidadão não diz qual, a regra no prompt manda listar as unidades ou perguntar, mas **o Llama 3B escolheu uma unidade nas 2 perguntas ambíguas da avaliação**. Próximo passo: responder a pergunta de horário sem unidade com o resumo da rede, em texto fixo. O assistente não pede endereço, então não descobre sozinho a UBS de referência.
+- **Rede municipal:** a pergunta de **horário** sem unidade é decidida no código (resumo da rede). Outras perguntas que dependem da unidade ("tem dentista na UBS?") ainda dependem da regra no prompt, que o Llama 3B nem sempre segue. O assistente não pede endereço, então não descobre sozinho a UBS de referência.
 - **Informações gerais de saúde:** cobrem só 4 doenças (dengue, gripe, hipertensão e diabetes). Na avaliação, os 14 casos passaram; o aviso fixo e o encaminhamento de quem pede diagnóstico não dependem do modelo, mas a fronteira entre "pergunta geral" e "relato de sintoma" é decidida pelo Choice.
 - **Jev ainda não avaliado com o dataset:** a integração está testada pelo SDK real com rede simulada (contrato, decisões, erros, LGPD), mas a chamada real e as métricas com o Jev dependem de chave (lista de espera).
 - **Busca:** sem re-ranking nem busca híbrida (ADR-05); a avaliação não mostrou necessidade.
 - **Escopo:** sem agendamento real, autenticação ou persistência de conversas (por decisão, LGPD). Agendamento e encaminhamento geram um protocolo que o paciente leva à recepção; o assistente não promete retorno, porque ninguém consegue entrar na conversa.
-- **Próximos passos:** pergunta ambígua decidida no código, avaliação com o Jev, transferência ao vivo para um atendente (fila, painel e mensagens em tempo real; as respostas com "aguarde" já estão prontas atrás de `HANDOFF_LIVE=true`), streaming das respostas, suporte a PDF na ingestão, métricas no Prometheus.
+- **Próximos passos:** avaliação com o Jev, transferência ao vivo para um atendente (fila, painel e mensagens em tempo real; as respostas com "aguarde" já estão prontas atrás de `HANDOFF_LIVE=true`), streaming das respostas, suporte a PDF na ingestão, métricas no Prometheus.
 
 ---
 

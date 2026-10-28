@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
-from app.guardrails import check_input, classify_intent, is_urgent, mentions_suicide
+from app.guardrails import asks_network_hours, check_input, classify_intent, is_urgent, mentions_suicide
 from app.judge import Judge
 from app.llm import message_text
 from app.models import ChatTurn, GraphState, Intent, RetrievedChunk, Source, ToolCallInfo
@@ -27,6 +27,7 @@ from app.prompts import (
     TOOL_ATENDENTE_SYSTEM,
     generate_user_prompt,
     handoff_reply,
+    network_hours_reply,
     schedule_ask_reply,
     schedule_confirmed_reply,
     schedule_unavailable_reply,
@@ -71,6 +72,7 @@ class GraphDeps:
     top_k: int = 3
     score_threshold: int = 3
     handoff_live: bool = False  # T-29: "aguarde" só com transferência ao vivo implementada
+    hours_summary: RetrievedChunk | None = None  # T-32: resposta fixa da pergunta de horário sem unidade
 
 
 Node = Callable[[GraphState], dict[str, Any]]
@@ -195,6 +197,12 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         value, n = deps.judge.score(state["message"], state["contexts"])
         return {"score": value, "llm_calls": calls(state, n)}
 
+    def resposta_horarios(state: GraphState) -> dict[str, Any]:
+        # RF08: o modelo pequeno escolhia uma unidade sozinho; o resumo de horários responde sem LLM (T-32)
+        summary = deps.hours_summary
+        assert summary is not None  # garantido por after_choice
+        return {"reply": network_hours_reply(summary.text), "contexts": [summary], "fallback": False}
+
     def fallback(state: GraphState) -> dict[str, Any]:
         return {"reply": FALLBACK_REPLY, "fallback": True}
 
@@ -213,6 +221,12 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         return "resposta_bloqueio" if state.get("guardrail") else "choice"
 
     def after_choice(state: GraphState) -> str:
+        if (
+            state["route"] == "CONSULTA_RAG"
+            and deps.hours_summary is not None
+            and asks_network_hours(state["message"], state.get("history", []))
+        ):
+            return "resposta_horarios"
         return INTENT_NODES[state["route"]]
 
     def after_retrieve(state: GraphState) -> str:
@@ -231,6 +245,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         "retrieve": retrieve,
         "score": score,
         "generate": generate,
+        "resposta_horarios": resposta_horarios,
         "fallback": fallback,
     }
     graph = StateGraph(GraphState)
@@ -239,9 +254,13 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
 
     graph.add_edge(START, "noul")
     graph.add_conditional_edges("noul", after_noul, ["resposta_bloqueio", "choice"])
-    graph.add_conditional_edges("choice", after_choice, list(INTENT_NODES.values()))
+    graph.add_conditional_edges("choice", after_choice, [*INTENT_NODES.values(), "resposta_horarios"])
     graph.add_conditional_edges("retrieve", after_retrieve, ["score", "fallback"])
     graph.add_conditional_edges("score", after_score, ["generate", "fallback"])
-    for terminal in ("resposta_bloqueio", "resposta_fora_nicho", "tool_agendamento", "tool_atendente", "generate", "fallback"):
+    terminals = (
+        "resposta_bloqueio", "resposta_fora_nicho", "tool_agendamento", "tool_atendente",
+        "generate", "resposta_horarios", "fallback",
+    )
+    for terminal in terminals:
         graph.add_edge(terminal, END)
     return graph.compile()

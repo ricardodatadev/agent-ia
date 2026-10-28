@@ -118,6 +118,14 @@ FALLBACK_REPLY = (
     "Recomendo confirmar na recepção da sua UBS ou pela Central de Atendimento da Secretaria Municipal de Saúde."
 )
 
+def network_hours_reply(summary: str) -> str:
+    """Pergunta de horário sem unidade (RF08, T-32): o resumo da rede vem do documento, não do LLM."""
+    return (
+        f"O horário depende da unidade. Na rede municipal:\n\n{summary}\n\n"
+        "Se você me disser qual é a sua UBS, posso dar mais detalhes sobre ela."
+    )
+
+
 OUT_OF_SCOPE_REPLY = (
     "Sou o assistente virtual da Secretaria Municipal de Saúde e só consigo ajudar com os serviços da rede "
     "municipal (unidades, horários, vacinas, exames, documentos, agendamento de consultas e atendimento) e com "

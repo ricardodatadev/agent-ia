@@ -32,8 +32,9 @@
 | 13 (pós-v1) | [13-tokens-por-decisao.md](13-tokens-por-decisao.md) | T-27 | T-26 | ◐ registro, soma e avaliação com o Llama feitos (T-31); pendente: comparação com o Jev (requer chave) |
 | 14 (pós-v1) | [14-informacoes-saude.md](14-informacoes-saude.md) | T-28 | T-27 | ☑ documentos, prompts, aviso fixo e ingestão feitos; avaliação com o Llama 14/14 (T-31) |
 | 15 (pós-v1) | [15-respostas-encaminhamento.md](15-respostas-encaminhamento.md) | T-29 | T-28 | ☑ textos e testes feitos (335 passed) |
-| 16 (pós-v1) | [16-rede-municipal.md](16-rede-municipal.md) | T-30 | T-29 | ◐ feito e medido (T-31); AC-RF08-3 falhou no Llama 3B (pergunta ambígua); pendente: nova captura de tela |
+| 16 (pós-v1) | [16-rede-municipal.md](16-rede-municipal.md) | T-30 | T-29 | ◐ feito e medido (T-31); AC-RF08-3 corrigido na T-32; pendente: nova captura de tela |
 | 17 (pós-v1) | [17-avaliacao-rede.md](17-avaliacao-rede.md) | T-31 | T-30 | ☑ 4 datasets, 89 casos, com o Llama real |
+| 18 (pós-v1) | [18-pergunta-ambigua.md](18-pergunta-ambigua.md) | T-32 | T-31 | ☑ resumo de horários sem LLM (358 passed); rede 7/9 com o Llama real |
 
 > A Fase 6 (frontend) pode ser feita em paralelo às Fases 2–5, usando o contrato de `POST /chat` da SPEC §5.3.
 
@@ -55,5 +56,5 @@
 | RF04 | AC-RF04-1..4 | 6 |
 | RF05 | AC-RF05-1..2 | 1, 7 |
 | RF07 | AC-RF07-1..6 | 14 |
-| RF08 | AC-RF08-1..4 | 16 |
+| RF08 | AC-RF08-1..5 | 16, 18 |
 | RNF01–RNF08 | — | 5, 8 |

@@ -45,7 +45,7 @@ def store() -> Iterator[VectorStore]:
 def test_reingestao_real_e_idempotente(store: VectorStore) -> None:  # AC-RF01-2
     before = store.count()
     report = store.ingest_dir(DATA_DIR)
-    assert report.files == 4
+    assert report.files == len(list(DATA_DIR.glob("*.md")))
     assert store.count() == before == report.chunks
 
 

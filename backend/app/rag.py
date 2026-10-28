@@ -133,6 +133,21 @@ def expected_chunks(data_dir: Path) -> int:
     )
 
 
+HOURS_SUMMARY_FILE = "unidades.md"
+HOURS_SUMMARY_SECTION = "Resumo de horários das unidades"
+
+
+def hours_summary(data_dir: Path = DATA_DIR) -> RetrievedChunk | None:
+    """Trecho do resumo de horários da rede, lido do documento: resposta fixa da pergunta ambígua (RF08, T-32)."""
+    path = data_dir / HOURS_SUMMARY_FILE
+    if not path.is_file():
+        return None
+    for index, chunk in enumerate(chunk_text(path.read_text(encoding="utf-8"))):
+        if (chunk.section or "").endswith(HOURS_SUMMARY_SECTION):
+            return RetrievedChunk(source=path.name, section=chunk.section, chunk_index=index, text=chunk.text, similarity=1.0)
+    return None
+
+
 def point_id(source: str, chunk_index: int) -> str:
     """ID determinístico: reingerir o mesmo arquivo sobrescreve os mesmos pontos (AC-RF01-2)."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}#{chunk_index}"))

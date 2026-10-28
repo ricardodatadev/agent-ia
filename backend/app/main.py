@@ -21,7 +21,7 @@ from app.jev import JevJudge, JevQuestions, classify_jev_error, resolve_engine
 from app.judge import Judge, LLMJudge
 from app.llm import LLM_ERRORS, classify_llm_error, make_chat_model, make_judge_model, warm_up
 from app.models import ChatRequest, ChatResponse, GraphState, RetrievedChunk
-from app.rag import VectorStore
+from app.rag import VectorStore, hours_summary
 
 logger = logging.getLogger("app")
 
@@ -90,6 +90,7 @@ def build_deps(settings: Settings) -> GraphDeps:
         top_k=settings.top_k,
         score_threshold=settings.score_threshold,
         handoff_live=settings.handoff_live,
+        hours_summary=hours_summary(),
     )
 
 

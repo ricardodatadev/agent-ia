@@ -310,14 +310,15 @@ class ToolResult(BaseModel):
 **Regras:**
 1. **Nomes:** o município é genérico ("Secretaria Municipal de Saúde", sem nome de cidade, para não se confundir com uma prefeitura real); só as unidades têm nomes fictícios (UBS Jardim Esperança, UBS Vila Nova, UBS Santa Clara). Endereços e telefones são fictícios.
 2. **Documentos:** `unidades.md` (resumo de horários e uma seção por unidade, com endereço, horário e serviços) e os documentos da rede (`funcionamento.md`, `vacinas.md`, `exames.md`, `especialidades.md`) escritos para a rede, incluindo a **UBS de referência** (cada cidadão é atendido na UBS do seu endereço) e como descobri-la.
-3. **Pergunta ambígua:** quando a resposta depende da unidade e o cidadão não disse qual ("que horas a UBS abre?"), a geração **lista as unidades** do contexto ou **pergunta qual é a UBS dele**; nunca escolhe uma unidade por conta própria (regra no prompt de geração).
+3. **Pergunta ambígua:** quando a resposta depende da unidade e o cidadão não disse qual ("que horas a UBS abre?"), a geração **lista as unidades** do contexto ou **pergunta qual é a UBS dele**; nunca escolhe uma unidade por conta própria (regra no prompt de geração). **Desde a T-32**, a pergunta de **horário** sem unidade é decidida no código: com rota `CONSULTA_RAG`, se a mensagem fala de horário ("horário", "horas", "abre", "fecha", "aberto") e de uma unidade genérica ("UBS", "posto", "unidade") sem citar nenhuma unidade, serviço ou exame específico, nem na mensagem nem nas últimas mensagens do cidadão, a resposta é fixa: o resumo de horários de `unidades.md` (lido do documento, não duplicado no código), com `unidades.md` nas fontes e sem Score nem geração. Motivo: na avaliação da T-31, o Llama 3B ignorou a regra do prompt nas 2 perguntas ambíguas.
 4. **Ferramentas sem mudança de contrato:** o agendamento continua sendo uma solicitação, confirmada na **UBS de referência** com o protocolo. O assistente **não pede endereço** (política de PII da RF02.1 mantida).
 5. Prompts, perguntas do Jev, respostas fixas e frontend passam a falar em nome da Secretaria Municipal de Saúde. Nomes internos (`ubs_docs`, `INTENT`, rotas) não mudam.
 
 **Critérios de aceite:**
 - **AC-RF08-1** — Os documentos da rede (todos exceto `saude-*.md`) são marcados como fictícios, citam as três UBS e não citam nome de cidade.
 - **AC-RF08-2** — *Given* "Qual UBS abre no sábado?", *Then* `route = "CONSULTA_RAG"` e a resposta cita a UBS Jardim Esperança, com `unidades.md` nas fontes.
-- **AC-RF08-3** — *Given* "Até que horas o posto fica aberto?" (sem unidade), *Then* a resposta lista os horários das unidades ou pergunta qual é a UBS do cidadão (avaliação manual no `dataset_rede.jsonl`).
+- **AC-RF08-3** — *Given* "Até que horas o posto fica aberto?" (sem unidade), *Then* a resposta lista os horários das unidades ou pergunta qual é a UBS do cidadão (avaliação manual no `dataset_rede.jsonl`). Desde a T-32: resposta fixa com o resumo de horários, `llm_calls` = Noul + Choice (sem Score nem geração).
+- **AC-RF08-5** — Perguntas de horário que citam uma unidade ("a UBS Vila Nova abre sábado?") ou um serviço ("que horas é a vacina na UBS?"), e perguntas sobre a UBS que não são de horário ("como funciona o cadastro na UBS?"), seguem o RAG normal.
 - **AC-RF08-4** — As respostas fixas de agendamento e encaminhamento remetem à **UBS de referência** e nenhuma pede endereço.
 
 ---
@@ -503,6 +504,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-29 | Respostas de agendamento e encaminhamento sem promessa de contato: protocolo levado à recepção, "aguarde" reservado para `HANDOFF_LIVE=true`, urgência com 192 primeiro | AC-RF03-5..6 | T-28 | ☑ |
 | T-30 | Rede municipal: assistente da Secretaria Municipal de Saúde, documentos com 3 UBS fictícias, Farmácia, CAPS e UPA, regra de pergunta ambígua, textos e frontend | AC-RF08-1..4 | T-29 | ☑ |
 | T-31 | Rodada de avaliação com o Llama real nos 4 datasets (89 casos) depois da rede municipal; resultados e falhas no README | §7.3 | T-30 | ☑ |
+| T-32 | Pergunta de horário sem unidade decidida no código: resumo de horários da rede como resposta fixa | AC-RF08-3, AC-RF08-5 | T-31 | ☑ |
 
 > Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde) [15-respostas-encaminhamento.md](checklists/15-respostas-encaminhamento.md) (T-29, respostas sem promessa de contato) e [16-rede-municipal.md](checklists/16-rede-municipal.md) (T-30, rede municipal).
 
@@ -553,7 +555,7 @@ Datasets complementares (mesmo formato, rodados com `--dataset`): `dataset_robus
 | RF05 | AC-RF05-1..2 | T-02, T-12 | verificação manual |
 | RF06 | AC-RF06-1..7 | T-22, T-23, T-24 | unit/test_jev_questions, unit/test_llm, integration/test_jev_judge, eval (Jev × modo local) |
 | RF07 | AC-RF07-1..6 | T-28 | unit/test_health_info, integration/test_ingest, eval (`dataset_saude.jsonl`) |
-| RF08 | AC-RF08-1..4 | T-30 | unit/test_rede_municipal, eval (`dataset_rede.jsonl`) |
+| RF08 | AC-RF08-1..5 | T-30, T-32 | unit/test_rede_municipal, integration/test_graph_horarios, eval (`dataset_rede.jsonl`) |
 
 ---
 

@@ -62,6 +62,26 @@ def mentions_suicide(text: str) -> bool:
     return any(term in normalized for term in SUICIDE_TERMS)
 
 
+# Pergunta ambígua da rede (RF08, T-32): horário de "a UBS" ou "o posto" sem dizer qual unidade.
+# "funciona" fica de fora: "como funciona o cadastro na UBS?" não é pergunta de horário.
+_HOURS = re.compile(r"\b(?:horarios?|horas|abre|abrem|fecha|fecham|abert[oa]s?)\b")
+_GENERIC_UNIT = re.compile(r"\b(?:ubs|posto|postinho|unidades?|centro de saude)\b")
+_SPECIFIC_TERMS = (  # unidade, serviço ou exame citado: o RAG responde com o trecho certo
+    "esperanca", "vila nova", "santa clara", "farmacia", "caps", "upa",
+    "vacina", "exame", "coleta", "teste", "jejum", "dentista", "odonto", "consulta",
+)
+HISTORY_TURNS_FOR_UNIT = 4
+
+
+def asks_network_hours(message: str, history: list[ChatTurn]) -> bool:
+    """Pergunta de horário sem unidade, nem na mensagem nem nas últimas mensagens do cidadão."""
+    text = normalize(message)
+    if not (_HOURS.search(text) and _GENERIC_UNIT.search(text)):
+        return False
+    recent = normalize(" ".join(t.content for t in history[-HISTORY_TURNS_FOR_UNIT:] if t.role == "user"))
+    return not any(term in f"{text} {recent}" for term in _SPECIFIC_TERMS)
+
+
 def find_pii(text: str) -> str | None:
     """Tipo do primeiro dado pessoal encontrado por regex, ou None."""
     for kind, pattern in PII_PATTERNS.items():

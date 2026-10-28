@@ -26,4 +26,4 @@
 - [x] Custo: 1126 tokens de entrada e 35 de saída por mensagem nas decisões, em média; resposta RAG completa em ~82 s na CPU
 
 ### Próximo passo proposto
-- [ ] Tirar a pergunta ambígua do LLM, como já é feito com a urgência: pergunta de horário sem unidade citada → resumo de horários da rede como texto fixo (tarefa nova, a combinar)
+- [x] Tirar a pergunta ambígua do LLM, como já é feito com a urgência: pergunta de horário sem unidade citada → resumo de horários da rede como texto fixo — **feito na T-32**, ver [18-pergunta-ambigua.md](18-pergunta-ambigua.md)
