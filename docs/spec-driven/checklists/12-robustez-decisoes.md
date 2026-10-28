@@ -31,6 +31,6 @@
 
 ### Verificação
 - [x] Suíte completa sem Docker: **312 passed**
-- [ ] Rodar `run_eval.py --dataset tests/eval/dataset_robustez.jsonl` com o LLM real (modo local) — **pendente: Docker desligado no momento**; comparar com o Jev quando houver `TYPESAFE_API_KEY`
-- [ ] Reavaliar o dataset de 50 casos após a mudança (recall de urgência continua 7/7?) — **pendente: mesma razão**
-- [ ] CI simulado em `python:3.12-slim` com a mudança — **pendente: Docker desligado**
+- [x] Rodar `run_eval.py --dataset tests/eval/dataset_robustez.jsonl` com o LLM real (modo local): urgência 7/7, PII 5/5, as 2 divergências são as limitações conhecidas (rob-neg-03 e 04) — **feito na T-31 (2026-10-27)**, ver [17-avaliacao-rede.md](17-avaliacao-rede.md); comparação com o Jev segue pendente (requer `TYPESAFE_API_KEY`)
+- [x] Reavaliar o dataset de 50 casos após a mudança: recall de urgência continua 7/7 — **feito na T-31 (2026-10-27)**, ver [17-avaliacao-rede.md](17-avaliacao-rede.md)
+- [x] CI com a mudança: GitHub Actions verde em todos os commits desde a T-26 (substitui o CI simulado)

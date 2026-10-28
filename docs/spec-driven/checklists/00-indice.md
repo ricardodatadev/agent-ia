@@ -28,11 +28,12 @@
 | 9 | [09-documentacao.md](09-documentacao.md) | T-15 | Fases 7 e 8 | ☑ |
 | 10 (pós-v1) | [10-modelos-provedores.md](10-modelos-provedores.md) | T-16 a T-20 | v1 | ◐ T-16 a T-20 feitas; pendentes com o usuário: chamada real a Claude/Gemini (sem chaves), GIF, repositório público e 1º CI verde |
 | 11 (pós-v1) | [11-jev-typesafe.md](11-jev-typesafe.md) | T-21 a T-25 | v1 | ◐ T-21 a T-25 feitas; pendentes: chamada real ao Jev e avaliação com o dataset (AC-RF06-7) — requerem `TYPESAFE_API_KEY` |
-| 12 (pós-v1) | [12-robustez-decisoes.md](12-robustez-decisoes.md) | T-26 | T-23 | ◐ código e testes feitos (312 passed); pendentes: medição com o LLM real/Jev e CI simulado |
-| 13 (pós-v1) | [13-tokens-por-decisao.md](13-tokens-por-decisao.md) | T-27 | T-26 | ◐ registro e soma de tokens feitos (319 passed); pendentes: avaliação completa com o Llama e comparação com o Jev (requer chave) |
-| 14 (pós-v1) | [14-informacoes-saude.md](14-informacoes-saude.md) | T-28 | T-27 | ◐ documentos, prompts, aviso fixo e ingestão feitos (330 passed); pendente: avaliação com o Llama real (`dataset_saude.jsonl` e regressão do `dataset.jsonl`) |
+| 12 (pós-v1) | [12-robustez-decisoes.md](12-robustez-decisoes.md) | T-26 | T-23 | ◐ código, testes e medição com o Llama feitos (T-31); pendente: medição com o Jev (requer chave) |
+| 13 (pós-v1) | [13-tokens-por-decisao.md](13-tokens-por-decisao.md) | T-27 | T-26 | ◐ registro, soma e avaliação com o Llama feitos (T-31); pendente: comparação com o Jev (requer chave) |
+| 14 (pós-v1) | [14-informacoes-saude.md](14-informacoes-saude.md) | T-28 | T-27 | ☑ documentos, prompts, aviso fixo e ingestão feitos; avaliação com o Llama 14/14 (T-31) |
 | 15 (pós-v1) | [15-respostas-encaminhamento.md](15-respostas-encaminhamento.md) | T-29 | T-28 | ☑ textos e testes feitos (335 passed) |
-| 16 (pós-v1) | [16-rede-municipal.md](16-rede-municipal.md) | T-30 | T-29 | ◐ documentos, textos, frontend e testes feitos (340 passed); pendente: avaliação com o Llama real (`dataset_rede.jsonl`) e nova captura de tela |
+| 16 (pós-v1) | [16-rede-municipal.md](16-rede-municipal.md) | T-30 | T-29 | ◐ feito e medido (T-31); AC-RF08-3 falhou no Llama 3B (pergunta ambígua); pendente: nova captura de tela |
+| 17 (pós-v1) | [17-avaliacao-rede.md](17-avaliacao-rede.md) | T-31 | T-30 | ☑ 4 datasets, 89 casos, com o Llama real |
 
 > A Fase 6 (frontend) pode ser feita em paralelo às Fases 2–5, usando o contrato de `POST /chat` da SPEC §5.3.
 

@@ -28,5 +28,5 @@
 ### Verificação
 - [x] Suíte completa: **330 passed**; typecheck do frontend sem erros
 - [x] Coleção passa de 32 para **62 pontos** (os 4 documentos novos geram 30 chunks)
-- [ ] Rodar `run_eval.py --dataset tests/eval/dataset_saude.jsonl` com o Llama real (AC-RF07-2..4) — **pendente: requer Docker no ar**
-- [ ] Rodar o `dataset.jsonl` original de novo, para confirmar que os documentos novos não pioraram as rotas e o Score da UBS — **pendente: requer Docker no ar (≈35 min em CPU)**
+- [x] Rodar `run_eval.py --dataset tests/eval/dataset_saude.jsonl` com o Llama real (AC-RF07-2..4): 14/14 sem divergências, 7 respostas revisadas à mão sem diagnóstico nem remédio — **feito na T-31 (2026-10-27)**, ver [17-avaliacao-rede.md](17-avaliacao-rede.md)
+- [x] Rodar o `dataset.jsonl` original de novo: Choice 38/39, RAG coberto 10/12 (rag-01 encaminhado à equipe, rag-07 com nota 2) — **feito na T-31 (2026-10-27)**, ver [17-avaliacao-rede.md](17-avaliacao-rede.md)

@@ -502,6 +502,7 @@ Ordem incremental: primeiro o caminho principal funcionando ponta a ponta, depoi
 | T-28 | Informações gerais de saúde: resumos do Ministério da Saúde no RAG, Choice e geração sem diagnóstico nem remédio, aviso fixo, ingestão que completa a coleção | AC-RF07-1..6 | T-27 | ☑ |
 | T-29 | Respostas de agendamento e encaminhamento sem promessa de contato: protocolo levado à recepção, "aguarde" reservado para `HANDOFF_LIVE=true`, urgência com 192 primeiro | AC-RF03-5..6 | T-28 | ☑ |
 | T-30 | Rede municipal: assistente da Secretaria Municipal de Saúde, documentos com 3 UBS fictícias, Farmácia, CAPS e UPA, regra de pergunta ambígua, textos e frontend | AC-RF08-1..4 | T-29 | ☑ |
+| T-31 | Rodada de avaliação com o Llama real nos 4 datasets (89 casos) depois da rede municipal; resultados e falhas no README | §7.3 | T-30 | ☑ |
 
 > Tarefas pós-v1: [10-modelos-provedores.md](checklists/10-modelos-provedores.md) (T-16 a T-20) [11-jev-typesafe.md](checklists/11-jev-typesafe.md) (T-21 a T-25, Jev da TypeSafe AI) [12-robustez-decisoes.md](checklists/12-robustez-decisoes.md) (T-26, robustez da urgência e da PII), [13-tokens-por-decisao.md](checklists/13-tokens-por-decisao.md) (T-27, tokens por decisão) [14-informacoes-saude.md](checklists/14-informacoes-saude.md) (T-28, informações gerais de saúde) [15-respostas-encaminhamento.md](checklists/15-respostas-encaminhamento.md) (T-29, respostas sem promessa de contato) e [16-rede-municipal.md](checklists/16-rede-municipal.md) (T-30, rede municipal).
 

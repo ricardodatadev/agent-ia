@@ -27,5 +27,5 @@
 
 ### Verificação
 - [x] Suíte completa: **340 passed**; typecheck do frontend sem erros
-- [ ] Rodar `run_eval.py` com o Llama real nos 50 casos e no `dataset_rede.jsonl`, com revisão manual da pergunta ambígua (AC-RF08-2..3) — **pendente: requer Docker no ar**
-- [ ] Nova captura de tela (`docs/screenshot.png`) com o cabeçalho novo — **pendente: requer a aplicação no ar**
+- [x] Rodar `run_eval.py` com o Llama real nos 50 casos e no `dataset_rede.jsonl`, com revisão manual — **feito na T-31 (2026-10-27)**, ver [17-avaliacao-rede.md](17-avaliacao-rede.md). **AC-RF08-3 falhou:** nas 2 perguntas ambíguas (rede-amb-01 e rag-02) o modelo escolheu a UBS Santa Clara; a regra no prompt não basta para o Llama 3B
+- [ ] Nova captura de tela (`docs/screenshot.png`) com o cabeçalho novo — **pendente com o usuário** (sem ferramenta de navegador nesta sessão)

@@ -20,5 +20,5 @@
 ### Verificação
 - [x] Suíte completa: **319 passed**
 - [x] Ollama real (`llama3.2:3b`): o `usage_metadata` vem preenchido — Noul: **481 e 486 tokens de entrada, 14 e 16 de saída** por decisão (a maior parte da entrada é o prompt de sistema com exemplos)
-- [ ] Rodar `run_eval.py` completo com o Llama e registrar a tabela de tokens por decisão — **pendente (≈35 min em CPU)**
+- [x] Rodar `run_eval.py` completo com o Llama e registrar a tabela de tokens por decisão: 1126 de entrada e 35 de saída por mensagem, em média — **feito na T-31 (2026-10-27)**, ver [17-avaliacao-rede.md](17-avaliacao-rede.md)
 - [ ] Rodar o mesmo dataset com o Jev e comparar acertos, tokens, chamadas, tempo e custo — **pendente: requer `TYPESAFE_API_KEY`**
